@@ -26,6 +26,11 @@ cp .env.example .env
 python main.py
 ```
 
+5. Run API server:
+```bash
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+```
+
 ## Project Structure
 
 ```
@@ -36,12 +41,34 @@ app/
 ├── utils/      # Helper functions
 └── config/     # Configuration management
 
-api/            # FastAPI routes (future)
+api/            # FastAPI application
+├── main.py     # FastAPI app entry
+└── routes/     # API endpoints
+
 tests/          # Unit tests
 ```
+
+## API Endpoints
+
+- `GET /` - Health check
+- `GET /health` - Detailed health status
+- `POST /workflows/execute` - Execute workflow
+- `GET /workflows/status` - Workflow system status
 
 ## Development
 
 - Run tests: `pytest`
+- Run tests with coverage: `pytest --cov=app`
 - Format code: `black .`
 - Lint: `ruff check .`
+- Type check: `mypy app/`
+
+## CI/CD
+
+GitHub Actions pipeline includes:
+- Multi-version Python testing (3.10, 3.11, 3.12)
+- Code formatting (Black)
+- Linting (Ruff)
+- Type checking (MyPy)
+- Security scanning (Safety, Bandit)
+- Test coverage reporting
