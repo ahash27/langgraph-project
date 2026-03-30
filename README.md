@@ -1,6 +1,6 @@
-# LangGraph Social Media Automation
+# LangGraph Project
 
-Production-ready AI workflow system built with LangGraph.
+Scaffold for an AI workflow system built with LangGraph.
 
 ## Setup
 
