@@ -5,6 +5,8 @@ from app.tools.base_tool import BaseTool
 from app.tools.data_transformer import DataTransformer
 from app.tools.validator_tool import ValidatorTool
 from app.tools.google_trends_tool import GoogleTrendsTool
+from app.tools.duckduckgo_trends_tool import DuckDuckGoTrendsTool
+from app.tools.trends_aggregator import TrendsAggregatorTool
 
 
 class ToolRegistry:
@@ -18,7 +20,11 @@ class ToolRegistry:
         "data_transformer": DataTransformer,
         "validator_tool": ValidatorTool,
         "google_trends": GoogleTrendsTool,
+        "duckduckgo_trends": DuckDuckGoTrendsTool,
     }
+    
+    # Lazy-initialized aggregator
+    _aggregator = None
     
     @classmethod
     def get_tool(cls, tool_name: str) -> BaseTool:
@@ -34,6 +40,17 @@ class ToolRegistry:
         Raises:
             ValueError: If tool not found
         """
+        # Handle aggregator specially (needs other tools)
+        if tool_name == "trends_aggregator":
+            if cls._aggregator is None:
+                # Initialize aggregator with trends tools
+                trends_tools = {
+                    "google_trends": cls.get_tool("google_trends"),
+                    "duckduckgo_trends": cls.get_tool("duckduckgo_trends")
+                }
+                cls._aggregator = TrendsAggregatorTool(trends_tools)
+            return cls._aggregator
+        
         tool_class = cls._tools.get(tool_name)
         if not tool_class:
             raise ValueError(f"Tool '{tool_name}' not found in registry")
@@ -42,7 +59,7 @@ class ToolRegistry:
     @classmethod
     def list_tools(cls) -> list:
         """Get list of all available tool names"""
-        return list(cls._tools.keys())
+        return list(cls._tools.keys()) + ["trends_aggregator"]
     
     @classmethod
     def register_tool(cls, name: str, tool_class: Type[BaseTool]):
