@@ -47,16 +47,18 @@ def test_aggregator():
             sources_str = ", ".join(trend['sources'])
             print(f"{trend['rank']}. {trend['topic']}")
             print(f"   Sources: {sources_str}")
-            print(f"   Score: {trend['score']:.1f}")
+            print(f"   Score: {trend['score']:.1f} (computed, not from API)")
             print()
         
         print("=" * 70)
         print("🎯 Aggregator Features Demonstrated:")
         print("  ✅ Multi-source data fetching")
+        print("  ✅ Self-healing normalization")
         print("  ✅ Duplicate removal")
         print("  ✅ Cross-source ranking")
         print("  ✅ Partial failure handling")
         print("  ✅ Source attribution")
+        print("  ✅ Computed scoring (not from API)")
         print("=" * 70)
         
         return True
