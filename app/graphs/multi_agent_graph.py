@@ -1,11 +1,14 @@
-"""Multi-agent workflow graph with dynamic routing"""
+"""Multi-agent workflow graph with dynamic routing."""
 
-from langgraph.graph import StateGraph, END
+from typing import Any, Dict
+
+from langgraph.graph import END, StateGraph
+
 from app.agents.coordinator_agent import CoordinatorAgent
 from app.agents.processor_agent import ProcessorAgent
 from app.agents.validator_agent import ValidatorAgent
+from app.graphs.state_schema import AgentState
 from app.utils.logger import log_routing_decision
-from typing import Dict, Any
 
 
 def route_after_validator(state: Dict[str, Any]) -> str:
@@ -64,7 +67,7 @@ def build_multi_agent_graph():
     validator = ValidatorAgent()
     
     # Build graph
-    builder = StateGraph(dict)
+    builder = StateGraph(AgentState)
     
     # Add agent nodes
     builder.add_node("coordinator", coordinator)
