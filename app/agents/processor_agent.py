@@ -104,20 +104,31 @@ class ProcessorAgent(BaseAgent):
             # Extract region from input or use default
             region = state.get("region", "united_states")  # Changed default
             
-            # Fetch trends data
-            trends_tool = self.tools["google_trends"]
-            trends_data = trends_tool.safe_execute(
-                region=region,
-                include_related=False  # Faster, avoid rate limits
-            )
+            # Use multi-source aggregator for better results
+            aggregator_tool = self.tools.get("trends_aggregator")
             
-            log_tool_usage("processor", "google_trends", success=True)
+            if aggregator_tool:
+                # Use aggregator (combines Google Trends + DuckDuckGo)
+                trends_data = aggregator_tool.safe_execute(region=region)
+                log_tool_usage("processor", "trends_aggregator", success=True)
+                
+                # Format aggregated result
+                result_msg = f"Fetched {trends_data['count']} trending topics from {trends_data['sources_successful']} sources"
+            else:
+                # Fallback to single source
+                trends_tool = self.tools["google_trends"]
+                trends_data = trends_tool.safe_execute(
+                    region=region,
+                    include_related=False  # Faster, avoid rate limits
+                )
+                log_tool_usage("processor", "google_trends", success=True)
+                result_msg = f"Fetched {trends_data.get('count', 0)} trending topics"
             
             # Format output
             processed_output = {
                 "original_input": user_input,
                 "intent": "trends",
-                "result": f"Fetched {trends_data['count']} trending topics for {trends_data['region']}",
+                "result": result_msg,
                 "trends_data": trends_data,
                 "metadata": {
                     "status": "success",
