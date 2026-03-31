@@ -34,6 +34,8 @@ class GoogleTrendsTool(BaseTool):
     """
     
     # Region mapping for normalization
+    # Note: Google Trends uses specific country codes
+    # Some regions may not support trending_searches()
     REGION_MAP = {
         "india": "india",
         "in": "india",
@@ -46,8 +48,26 @@ class GoogleTrendsTool(BaseTool):
         "canada": "canada",
         "ca": "canada",
         "australia": "australia",
-        "au": "australia"
+        "au": "australia",
+        "japan": "japan",
+        "jp": "japan",
+        "germany": "germany",
+        "de": "germany",
+        "france": "france",
+        "fr": "france"
     }
+    
+    # Regions known to work with trending_searches()
+    # Google Trends API is inconsistent - some regions work, others don't
+    SUPPORTED_REGIONS = [
+        "united_states",
+        "united_kingdom", 
+        "canada",
+        "australia",
+        "japan",
+        "germany",
+        "france"
+    ]
     
     def __init__(self):
         super().__init__(
@@ -82,21 +102,33 @@ class GoogleTrendsTool(BaseTool):
         region_lower = region.lower().strip()
         return self.REGION_MAP.get(region_lower, region_lower)
     
-    def fetch_trending_searches(self, region: str = "india") -> List[str]:
+    def fetch_trending_searches(self, region: str = "united_states") -> List[str]:
         """
         Fetch current trending searches for a region.
         
         Args:
-            region: Region code (e.g., 'india', 'united_states')
+            region: Region code (e.g., 'united_states', 'united_kingdom')
             
         Returns:
             List of trending search terms
+            
+        Note:
+            Google Trends API is inconsistent. Some regions work, others return 404.
+            Supported regions: united_states, united_kingdom, canada, australia, 
+            japan, germany, france
         """
         try:
             df = self.pytrends.trending_searches(pn=region)
             return df[0].tolist()[:10]  # Top 10 trends
         except Exception as e:
-            raise Exception(f"Error fetching trending searches: {str(e)}")
+            # Provide helpful error message
+            error_msg = str(e)
+            if "404" in error_msg:
+                raise Exception(
+                    f"Region '{region}' not supported by Google Trends API. "
+                    f"Try: {', '.join(self.SUPPORTED_REGIONS[:3])}"
+                )
+            raise Exception(f"Error fetching trending searches: {error_msg}")
     
     def fetch_related_queries(self, keyword: str) -> Dict[str, Any]:
         """
@@ -129,7 +161,7 @@ class GoogleTrendsTool(BaseTool):
     def execute(
         self,
         keyword: Optional[str] = None,
-        region: str = "india",
+        region: str = "united_states",
         include_related: bool = True
     ) -> Dict[str, Any]:
         """
@@ -137,11 +169,15 @@ class GoogleTrendsTool(BaseTool):
         
         Args:
             keyword: Optional specific keyword to analyze
-            region: Region code (default: 'india')
+            region: Region code (default: 'united_states')
             include_related: Whether to fetch related queries
             
         Returns:
             Dictionary with trends data
+            
+        Note:
+            Default region changed to 'united_states' due to API limitations.
+            Not all regions support trending_searches().
         """
         # Normalize region
         normalized_region = self._normalize_region(region)
