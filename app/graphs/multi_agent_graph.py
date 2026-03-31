@@ -1,7 +1,5 @@
 """Multi-agent workflow graph with dynamic routing."""
 
-from typing import Any, Dict
-
 from langgraph.graph import END, StateGraph
 
 from app.agents.coordinator_agent import CoordinatorAgent
@@ -11,7 +9,7 @@ from app.graphs.state_schema import AgentState
 from app.utils.logger import log_routing_decision
 
 
-def route_after_validator(state: Dict[str, Any]) -> str:
+def route_after_validator(state: AgentState) -> str:
     """
     Dynamic routing after validator.
     
@@ -33,7 +31,7 @@ def route_after_validator(state: Dict[str, Any]) -> str:
         return "end"
 
 
-def route_after_coordinator(state: Dict[str, Any]) -> str:
+def route_after_coordinator(state: AgentState) -> str:
     """
     Dynamic routing after coordinator.
     

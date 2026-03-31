@@ -1,12 +1,75 @@
 """State schema for multi-agent workflows."""
 
 from operator import add
-from typing import Annotated, Any, Dict, List, Optional, TypedDict
+from typing import Annotated, Dict, List, Optional, TypeVar, TypedDict, Union
+
+JSONPrimitive = Union[str, int, float, bool, None]
+JSONValue = Union[
+    JSONPrimitive,
+    List["JSONValue"],
+    Dict[str, "JSONValue"],
+]
+Metadata = Dict[str, JSONValue]
+StringMap = Dict[str, str]
+T = TypeVar("T")
 
 
-def merge_lists(existing: List[Any], incoming: List[Any]) -> List[Any]:
+def merge_lists(existing: List[T], incoming: List[T]) -> List[T]:
     """Append new items instead of overwriting list state."""
     return [*existing, *incoming]
+
+
+class PlanStep(TypedDict, total=False):
+    """Single step in the coordinator plan."""
+
+    name: str
+    status: str
+    description: str
+
+
+class AgentPlan(TypedDict, total=False):
+    """Coordinator output describing how the workflow should proceed."""
+
+    task: str
+    complexity: float
+    steps: List[Union[str, PlanStep]]
+    priority: str
+    requires_tools: List[str]
+    next_agent: str
+    intent: str
+
+
+class ProcessedOutput(TypedDict, total=False):
+    """Normalized processor output shared with downstream agents."""
+
+    original_input: str
+    transformed_input: str
+    plan_executed: str
+    result: str
+    intent: str
+    error: str
+    error_details: str
+    trends_data: Metadata
+    metadata: Metadata
+
+
+class ValidationResult(TypedDict, total=False):
+    """Validator output describing quality and retry decisions."""
+
+    is_valid: bool
+    quality_score: float
+    checks_passed: List[str]
+    issues: List[str]
+    needs_retry: bool
+
+
+class FinalOutput(TypedDict, total=False):
+    """Final workflow payload returned at the end of execution."""
+
+    result: str
+    validation: ValidationResult
+    status: str
+    retry_count: int
 
 
 class TrendItem(TypedDict, total=False):
@@ -17,7 +80,7 @@ class TrendItem(TypedDict, total=False):
     region: str
     score: float
     summary: str
-    metadata: Dict[str, Any]
+    metadata: Metadata
 
 
 class PostDraft(TypedDict, total=False):
@@ -28,7 +91,7 @@ class PostDraft(TypedDict, total=False):
     tone: str
     hashtags: List[str]
     rationale: str
-    metadata: Dict[str, Any]
+    metadata: Metadata
 
 
 class ApprovedPost(TypedDict, total=False):
@@ -39,7 +102,7 @@ class ApprovedPost(TypedDict, total=False):
     hashtags: List[str]
     approved_by: str
     approved_at: str
-    metadata: Dict[str, Any]
+    metadata: Metadata
 
 
 class EngagementMetrics(TypedDict, total=False):
@@ -53,7 +116,7 @@ class EngagementMetrics(TypedDict, total=False):
     clicks: int
     engagement_rate: float
     captured_at: str
-    metadata: Dict[str, Any]
+    metadata: Metadata
 
 
 class AgentState(TypedDict, total=False):
@@ -73,24 +136,24 @@ class AgentState(TypedDict, total=False):
     engagement_metrics: Annotated[List[EngagementMetrics], merge_lists]
 
     # Coordinator outputs
-    plan: Dict[str, Any]
+    plan: AgentPlan
     next_agent: str
     coordinator_status: str
 
     # Processor outputs
-    processed_output: Dict[str, Any]
+    processed_output: ProcessedOutput
     processor_status: str
     processor_confidence: float
 
     # Validator outputs
-    validation_result: Dict[str, Any]
+    validation_result: ValidationResult
     is_valid: bool
     validator_status: str
     validation_score: float
     issues: Annotated[List[str], add]
 
     # Final output
-    final_output: Dict[str, Any]
+    final_output: FinalOutput
 
     # Workflow control
     retry_count: int
@@ -106,7 +169,7 @@ class ToolExecutionState(TypedDict, total=False):
     """State for tool execution."""
 
     tool_name: str
-    tool_input: Dict[str, Any]
-    tool_output: Any
+    tool_input: Metadata
+    tool_output: Metadata
     tool_status: str
     error: Optional[str]
