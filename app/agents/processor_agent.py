@@ -15,6 +15,7 @@ class ProcessorAgent(BaseAgent):
     - Transform input data using tools
     - Generate intermediate results
     - Provide confidence scores
+    - Integrate with external data sources (e.g., Google Trends)
     """
     
     def __init__(self):
@@ -33,6 +34,30 @@ class ProcessorAgent(BaseAgent):
         except Exception:
             pass  # Tools optional for basic operation
     
+    def _detect_intent(self, user_input: str, plan: Dict[str, Any]) -> str:
+        """
+        Detect user intent from input and plan.
+        
+        Args:
+            user_input: User's input text
+            plan: Execution plan from coordinator
+            
+        Returns:
+            Intent string (e.g., 'trends', 'transform', 'generic')
+        """
+        input_lower = user_input.lower()
+        
+        # Check for trends-related keywords
+        trends_keywords = ['trend', 'trending', 'popular', 'viral', 'google trends']
+        if any(keyword in input_lower for keyword in trends_keywords):
+            return 'trends'
+        
+        # Check plan for explicit intent
+        if 'intent' in plan:
+            return plan['intent']
+        
+        return 'generic'
+    
     def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process the task according to plan with tool integration.
@@ -48,6 +73,92 @@ class ProcessorAgent(BaseAgent):
         plan = state.get("plan", {})
         user_input = state.get("input", "")
         execution_history = state.get("execution_history", [])
+        
+        # Detect intent
+        intent = self._detect_intent(user_input, plan)
+        
+        # Handle trends intent
+        if intent == 'trends' and "google_trends" in self.tools:
+            return self._process_trends_request(state, plan, execution_history)
+        
+        # Default processing with data transformation
+        return self._process_generic_request(state, plan, execution_history)
+    
+    def _process_trends_request(
+        self, 
+        state: Dict[str, Any], 
+        plan: Dict[str, Any],
+        execution_history: List[str]
+    ) -> Dict[str, Any]:
+        """Process request for Google Trends data"""
+        user_input = state.get("input", "")
+        
+        try:
+            # Extract region from input or use default
+            region = state.get("region", "india")
+            
+            # Fetch trends data
+            trends_tool = self.tools["google_trends"]
+            trends_data = trends_tool.safe_execute(
+                region=region,
+                include_related=True
+            )
+            
+            log_tool_usage("processor", "google_trends", success=True)
+            
+            # Format output
+            processed_output = {
+                "original_input": user_input,
+                "intent": "trends",
+                "result": f"Fetched {trends_data['count']} trending topics for {trends_data['region']}",
+                "trends_data": trends_data,
+                "metadata": {
+                    "status": "success",
+                    "tools_used": ["google_trends"],
+                    "data_source": "Google Trends"
+                }
+            }
+            
+            confidence = 0.95  # High confidence for successful API call
+            
+        except Exception as e:
+            log_tool_usage("processor", "google_trends", success=False)
+            
+            processed_output = {
+                "original_input": user_input,
+                "intent": "trends",
+                "result": f"Failed to fetch trends: {str(e)}",
+                "error": str(e),
+                "metadata": {
+                    "status": "error",
+                    "tools_used": ["google_trends"]
+                }
+            }
+            
+            confidence = 0.3  # Low confidence on error
+        
+        log_agent_step("processor", {"confidence": confidence, "intent": "trends"}, "complete")
+        
+        execution_history.append("processor")
+        
+        return {
+            **state,
+            "processed_output": processed_output,
+            "processor_confidence": confidence,
+            "next_agent": "validator",
+            "processor_status": "completed",
+            "current_agent": "processor",
+            "execution_history": execution_history
+        }
+    
+    def _process_generic_request(
+        self,
+        state: Dict[str, Any],
+        plan: Dict[str, Any],
+        execution_history: List[str]
+    ) -> Dict[str, Any]:
+        """Process generic request with data transformation"""
+        user_input = state.get("input", "")
         
         # Use tools if specified in plan
         transformed_data = user_input
@@ -67,7 +178,7 @@ class ProcessorAgent(BaseAgent):
         
         # Calculate confidence based on complexity
         complexity = plan.get("complexity", 0.5)
-        confidence = 1.0 - (complexity * 0.3)  # Higher complexity = lower confidence
+        confidence = 1.0 - (complexity * 0.3)
         
         # Generic processing logic
         processed_output = {
@@ -84,7 +195,6 @@ class ProcessorAgent(BaseAgent):
         
         log_agent_step("processor", {"confidence": confidence}, "complete")
         
-        # Update execution history
         execution_history.append("processor")
         
         return {

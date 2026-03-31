@@ -4,6 +4,7 @@ from typing import Dict, Type
 from app.tools.base_tool import BaseTool
 from app.tools.data_transformer import DataTransformer
 from app.tools.validator_tool import ValidatorTool
+from app.tools.google_trends_tool import GoogleTrendsTool
 
 
 class ToolRegistry:
@@ -16,6 +17,7 @@ class ToolRegistry:
     _tools: Dict[str, Type[BaseTool]] = {
         "data_transformer": DataTransformer,
         "validator_tool": ValidatorTool,
+        "google_trends": GoogleTrendsTool,
     }
     
     @classmethod

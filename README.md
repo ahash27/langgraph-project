@@ -70,6 +70,7 @@ Specialized AI components with autonomy:
 Reusable utilities that agents dynamically select:
 - **DataTransformer**: Format and transform data
 - **ValidatorTool**: Run validation checks
+- **GoogleTrendsTool**: Fetch trending topics from Google Trends (NEW)
 
 Agents choose tools based on task requirements.
 
@@ -108,7 +109,12 @@ cp .env.example .env
 python main.py
 ```
 
-5. Run API server:
+5. Run Google Trends demo:
+```bash
+python demo_trends.py
+```
+
+6. Run API server:
 ```bash
 uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -122,6 +128,35 @@ from app.graphs.multi_agent_graph import build_multi_agent_graph
 graph = build_multi_agent_graph()
 result = graph.invoke({"input": "Your task here"})
 print(result["final_output"])
+```
+
+### Use Google Trends Tool
+```python
+from app.tools.tool_registry import ToolRegistry
+
+# Get tool from registry
+trends_tool = ToolRegistry.get_tool("google_trends")
+
+# Fetch trending topics
+result = trends_tool.safe_execute(region="india", include_related=True)
+print(f"Found {result['count']} trends")
+
+# Analyze specific keyword
+result = trends_tool.safe_execute(
+    keyword="artificial intelligence",
+    region="us",
+    include_related=True
+)
+```
+
+### Multi-Agent System with Trends
+```python
+# System automatically detects "trends" intent and uses Google Trends tool
+graph = build_multi_agent_graph()
+result = graph.invoke({
+    "input": "Show me trending topics",
+    "region": "india"
+})
 ```
 
 ### Use Agent Registry
