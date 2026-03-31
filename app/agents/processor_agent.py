@@ -102,13 +102,13 @@ class ProcessorAgent(BaseAgent):
         
         try:
             # Extract region from input or use default
-            region = state.get("region", "india")
+            region = state.get("region", "united_states")  # Changed default
             
             # Fetch trends data
             trends_tool = self.tools["google_trends"]
             trends_data = trends_tool.safe_execute(
                 region=region,
-                include_related=True
+                include_related=False  # Faster, avoid rate limits
             )
             
             log_tool_usage("processor", "google_trends", success=True)
@@ -131,11 +131,19 @@ class ProcessorAgent(BaseAgent):
         except Exception as e:
             log_tool_usage("processor", "google_trends", success=False)
             
+            # Log detailed error for debugging
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"\n[ERROR] Google Trends API failed:")
+            print(f"  Error: {str(e)}")
+            print(f"  Details: {error_details}\n")
+            
             processed_output = {
                 "original_input": user_input,
                 "intent": "trends",
                 "result": f"Failed to fetch trends: {str(e)}",
                 "error": str(e),
+                "error_details": error_details,
                 "metadata": {
                     "status": "error",
                     "tools_used": ["google_trends"]

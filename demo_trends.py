@@ -17,12 +17,13 @@ def demo_trends_integration():
     # Test input requesting trends
     test_input = {
         "input": "Show me the trending topics on Google right now",
-        "region": "india",
+        "region": "united_states",  # Changed from india due to API limitations
         "execution_history": []
     }
     
     print(f"📥 User Request: {test_input['input']}")
-    print(f"🌍 Region: {test_input['region']}\n")
+    print(f"🌍 Region: {test_input['region']}")
+    print(f"   Note: Using US region (India not supported by Google Trends API)\n")
     print("=" * 70 + "\n")
     
     print("⚙️  Executing multi-agent workflow...")
