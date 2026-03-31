@@ -237,6 +237,8 @@ class GoogleTrendsTool(BaseTool):
             results.append(trend_data)
         
         return {
+            "source": "google_trends",
+            "status": "success",
             "region": normalized_region,
             "trends": results,
             "count": len(results)
