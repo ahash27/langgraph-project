@@ -3,16 +3,22 @@
 from typing import Dict, List, Any, Optional
 from collections import Counter
 from app.tools.base_tool import BaseTool
+from app.tools.response_normalizer import (
+    normalize_tool_response,
+    validate_normalized_response,
+    compute_trend_score
+)
 from app.utils.logger import log_tool_usage
 import re
 
 
 class TrendsAggregatorTool(BaseTool):
     """
-    Aggregates trends from multiple sources.
+    Aggregates trends from multiple sources with self-healing normalization.
     
     Features:
     - Combines results from Google Trends and DuckDuckGo
+    - Self-healing: normalizes responses from any tool format
     - Removes duplicates
     - Ranks by frequency across sources
     - Provides source attribution
@@ -24,7 +30,7 @@ class TrendsAggregatorTool(BaseTool):
     def __init__(self, tools: Dict[str, Any]):
         super().__init__(
             name="trends_aggregator",
-            description="Aggregates trending topics from multiple sources"
+            description="Aggregates trending topics from multiple sources with self-healing normalization"
         )
         self.tools = tools
     
@@ -108,12 +114,12 @@ class TrendsAggregatorTool(BaseTool):
         # Convert to list and sort
         merged_trends = []
         for normalized, data in topic_map.items():
-            # Calculate score (higher is better)
-            # More sources = higher score
-            # Lower rank sum = higher score
-            source_score = data["count"] * 100
-            rank_score = 1000 / (data["rank_sum"] + 1) if data["rank_sum"] > 0 else 0
-            total_score = source_score + rank_score
+            # Calculate score using normalized function
+            total_score = compute_trend_score(
+                trend=data,
+                source_count=data["count"],
+                rank_sum=data["rank_sum"]
+            )
             
             merged_trends.append({
                 "topic": data["original"],
@@ -121,6 +127,7 @@ class TrendsAggregatorTool(BaseTool):
                 "sources": list(set(data["sources"])),  # Unique sources
                 "source_count": data["count"],
                 "score": total_score,
+                "score_note": "Computed score (not from API): based on cross-source frequency and ranking",
                 "metadata": data["metadata"]
             })
         
@@ -153,7 +160,7 @@ class TrendsAggregatorTool(BaseTool):
         sources_data = []
         errors = []
         
-        # Fetch from each source
+        # Fetch from each source with normalization
         for tool_name, tool in self.tools.items():
             try:
                 # Build kwargs based on tool type
@@ -171,9 +178,30 @@ class TrendsAggregatorTool(BaseTool):
                     if keyword:
                         tool_kwargs["keyword"] = keyword
                 
-                result = tool.safe_execute(**tool_kwargs)
-                sources_data.append(result)
-                log_tool_usage("aggregator", tool_name, success=True)
+                # Fetch raw response
+                raw_response = tool.safe_execute(**tool_kwargs)
+                
+                # NORMALIZE: Self-healing layer
+                normalized_response = normalize_tool_response(raw_response, tool_name)
+                
+                # Validate normalization
+                if not validate_normalized_response(normalized_response):
+                    raise Exception(f"Normalization failed for {tool_name}")
+                
+                # Check if source actually succeeded
+                if normalized_response.get("status") == "success":
+                    sources_data.append(normalized_response)
+                    log_tool_usage("aggregator", tool_name, success=True)
+                else:
+                    # Source reported failure
+                    error_info = {
+                        "source": tool_name,
+                        "status": "failed",
+                        "error": normalized_response.get("error", "Unknown error")
+                    }
+                    sources_data.append(error_info)
+                    errors.append(error_info)
+                    log_tool_usage("aggregator", tool_name, success=False)
                 
             except Exception as e:
                 error_info = {

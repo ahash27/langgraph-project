@@ -29,11 +29,37 @@ The Trends Aggregator is a production-ready pattern for combining data from mult
 ## Features
 
 ✅ **Multi-Source Fetching** - Combines Google Trends + DuckDuckGo  
+✅ **Self-Healing Normalization** - Automatically fixes inconsistent tool outputs  
 ✅ **Intelligent Deduplication** - Normalizes and merges similar topics  
 ✅ **Cross-Source Ranking** - Topics appearing in multiple sources rank higher  
 ✅ **Partial Failure Handling** - Works even if one source fails  
 ✅ **Source Attribution** - Tracks which sources provided each topic  
 ✅ **Production-Ready** - Error handling, logging, retry logic  
+
+## Self-Healing Architecture
+
+The aggregator uses a response normalizer layer to ensure consistent data format:
+
+```python
+# Each tool returns different formats
+google_result = {"source": "google_trends", "trends": [...]}
+ddg_result = {"trends": [...]}  # Missing source field!
+
+# Normalizer fixes inconsistencies
+normalized = normalize_tool_response(ddg_result, "duckduckgo_trends")
+# Now guaranteed: source, status, trends, count, error
+
+# Validation ensures correctness
+if validate_normalized_response(normalized):
+    # Safe to use
+    process_trends(normalized)
+```
+
+This prevents the system from breaking when:
+- Tools return different field names (`topic` vs `title`)
+- Tools omit required fields (`source`, `status`)
+- Tools return strings instead of objects
+- New tools are added with different formats  
 
 ## Usage
 
@@ -76,14 +102,32 @@ result = graph.invoke({
 
 ## How It Works
 
-### 1. Parallel Fetching
+### 1. Parallel Fetching with Self-Healing
 
 ```python
 sources_data = []
 for tool_name, tool in self.tools.items():
     try:
-        result = tool.safe_execute(**kwargs)
-        sources_data.append(result)
+        # Fetch raw response
+        raw_response = tool.safe_execute(**kwargs)
+        
+        # NORMALIZE: Self-healing layer
+        normalized_response = normalize_tool_response(raw_response, tool_name)
+        
+        # Validate normalization
+        if not validate_normalized_response(normalized_response):
+            raise Exception(f"Normalization failed for {tool_name}")
+        
+        # Check if source actually succeeded
+        if normalized_response.get("status") == "success":
+            sources_data.append(normalized_response)
+        else:
+            # Source reported failure
+            errors.append({
+                "source": tool_name,
+                "status": "failed",
+                "error": normalized_response.get("error")
+            })
     except Exception as e:
         # Log error but continue with other sources
         errors.append({"source": tool_name, "error": str(e)})
@@ -129,7 +173,7 @@ for source_data in sources_data:
 ### 4. Cross-Source Ranking
 
 ```python
-# Calculate score
+# Calculate score (COMPUTED, not from API)
 source_score = data["count"] * 100  # More sources = higher score
 rank_score = 1000 / (data["rank_sum"] + 1)  # Lower rank = higher score
 total_score = source_score + rank_score
@@ -137,6 +181,14 @@ total_score = source_score + rank_score
 # Sort by score
 merged_trends.sort(key=lambda x: x["score"], reverse=True)
 ```
+
+**Important Note on Scores:**
+- Scores are COMPUTED by the aggregator, not provided by APIs
+- Google Trends and DuckDuckGo don't provide absolute popularity scores
+- Our scoring algorithm combines:
+  - Cross-source frequency (appears in multiple sources = higher score)
+  - Ranking position (lower rank = more popular = higher score)
+- This is documented in each trend's `score_note` field
 
 ## Response Format
 
@@ -153,6 +205,7 @@ merged_trends.sort(key=lambda x: x["score"], reverse=True)
             "sources": ["google_trends", "duckduckgo_trends"],
             "source_count": 2,
             "score": 250.5,
+            "score_note": "Computed score (not from API): based on cross-source frequency and ranking",
             "metadata": [
                 {
                     "source": "google_trends",
@@ -169,6 +222,30 @@ merged_trends.sort(key=lambda x: x["score"], reverse=True)
     ],
     "errors": [],
     "raw_sources": [...]
+}
+```
+
+### Status Values
+
+- **success**: All sources returned data successfully
+- **partial_success**: Some sources succeeded, others failed (still usable)
+- **failed**: All sources failed (no data available)
+
+### Error Handling
+
+Failed sources are tracked in the `errors` array and `raw_sources`:
+
+```python
+{
+    "status": "partial_success",
+    "sources_successful": 1,
+    "errors": [
+        {
+            "source": "google_trends",
+            "status": "failed",
+            "error": "Rate limit exceeded"
+        }
+    ]
 }
 ```
 
