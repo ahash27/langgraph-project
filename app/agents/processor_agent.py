@@ -44,6 +44,13 @@ class ProcessorAgent(BaseAgent):
             
         Returns:
             Intent string (e.g., 'trends', 'transform', 'generic')
+            
+        Note:
+            This is a simple keyword-based approach. In production, consider:
+            - Using LLM for intent classification
+            - Training a dedicated intent classifier
+            - Using embeddings for semantic matching
+            - Maintaining intent history for context
         """
         input_lower = user_input.lower()
         

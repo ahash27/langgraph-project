@@ -3,6 +3,7 @@
 from typing import Dict, List, Any, Optional
 import time
 from app.tools.base_tool import BaseTool
+from app.utils.logger import log_tool_usage
 
 
 class GoogleTrendsTool(BaseTool):
@@ -18,7 +19,18 @@ class GoogleTrendsTool(BaseTool):
     - Rate limiting protection
     - Retry logic with exponential backoff
     - Region normalization
-    - Error handling
+    - Error handling with visibility
+    - Timeout protection (documented)
+    
+    Note on Scores:
+    Google Trends API does not provide absolute popularity scores.
+    We use ranking (1-10) as a proxy, where 1 is most popular.
+    
+    Note on Timeouts:
+    External API calls can hang. In production, consider:
+    - Using requests with timeout parameter
+    - Implementing signal-based timeouts
+    - Setting pytrends timeout in TrendReq initialization
     """
     
     # Region mapping for normalization
@@ -49,6 +61,8 @@ class GoogleTrendsTool(BaseTool):
         """Initialize pytrends client lazily"""
         try:
             from pytrends.request import TrendReq
+            # Note: timeout can be set here for production
+            # TrendReq(hl='en-US', tz=360, timeout=(10, 25))
             self.pytrends = TrendReq(hl='en-US', tz=360)
         except ImportError:
             raise ImportError(
@@ -84,7 +98,7 @@ class GoogleTrendsTool(BaseTool):
         except Exception as e:
             raise Exception(f"Error fetching trending searches: {str(e)}")
     
-    def fetch_related_queries(self, keyword: str) -> List[str]:
+    def fetch_related_queries(self, keyword: str) -> Dict[str, Any]:
         """
         Fetch related queries for a specific keyword.
         
@@ -92,7 +106,7 @@ class GoogleTrendsTool(BaseTool):
             keyword: Search keyword
             
         Returns:
-            List of related query strings
+            Dictionary with queries list and optional error
         """
         try:
             self.pytrends.build_payload([keyword], timeframe='now 7-d')
@@ -100,10 +114,17 @@ class GoogleTrendsTool(BaseTool):
             
             if keyword in related and related[keyword]["top"] is not None:
                 queries = related[keyword]["top"]["query"].tolist()
-                return queries[:5]  # Top 5 related queries
-            return []
-        except Exception:
-            return []  # Gracefully handle errors for related queries
+                return {
+                    "queries": queries[:5],  # Top 5 related queries
+                    "error": None
+                }
+            return {"queries": [], "error": None}
+        except Exception as e:
+            # Don't hide failures - return error info
+            return {
+                "queries": [],
+                "error": f"Failed to fetch related queries: {str(e)}"
+            }
     
     def execute(
         self,
@@ -127,14 +148,15 @@ class GoogleTrendsTool(BaseTool):
         
         # If specific keyword provided, analyze it
         if keyword:
-            related_queries = []
+            related_result = {"queries": [], "error": None}
             if include_related:
-                related_queries = self.fetch_related_queries(keyword)
+                related_result = self.fetch_related_queries(keyword)
             
             return {
                 "region": normalized_region,
                 "keyword": keyword,
-                "related_queries": related_queries,
+                "related_queries": related_result["queries"],
+                "related_queries_error": related_result["error"],
                 "trends": []
             }
         
@@ -142,20 +164,24 @@ class GoogleTrendsTool(BaseTool):
         trends = self.fetch_trending_searches(normalized_region)
         results = []
         
-        for topic in trends:
+        for index, topic in enumerate(trends, start=1):
             trend_data = {
                 "topic": topic,
-                "score": None,  # Google Trends doesn't provide direct scores
-                "related_queries": []
+                "rank": index,  # Ranking as proxy for score (1-10)
+                "score": None,  # Google Trends doesn't provide absolute scores
+                "related_queries": [],
+                "related_queries_error": None
             }
             
             # Fetch related queries if requested
             if include_related:
-                try:
-                    trend_data["related_queries"] = self.fetch_related_queries(topic)
-                    time.sleep(1)  # Rate limiting protection
-                except Exception:
-                    pass  # Continue even if related queries fail
+                related_result = self.fetch_related_queries(topic)
+                trend_data["related_queries"] = related_result["queries"]
+                trend_data["related_queries_error"] = related_result["error"]
+                
+                # Rate limiting protection
+                if related_result["error"] is None:
+                    time.sleep(1)
             
             results.append(trend_data)
         
