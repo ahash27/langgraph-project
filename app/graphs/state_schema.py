@@ -31,7 +31,6 @@ class AgentPlan(TypedDict, total=False):
     steps: List[PlanStep]
     priority: str
     requires_tools: List[str]
-    next_agent: str
     intent: str
 
 
@@ -146,7 +145,6 @@ class AgentState(TypedDict, total=False):
     is_valid: bool
     validator_status: str
     validation_score: float
-    issues: List[str]
 
     # Final output
     final_output: FinalOutput

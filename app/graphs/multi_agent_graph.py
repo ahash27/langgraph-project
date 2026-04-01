@@ -35,15 +35,10 @@ def route_after_coordinator(state: AgentState) -> str:
     """
     Dynamic routing after coordinator.
     
-    COORDINATOR DECIDES - reads from plan's next_agent field.
+    COORDINATOR DECIDES - reads from top-level next_agent field.
     This is TRUE agent autonomy.
     """
-    plan = state.get("plan", {})
-    
-    # Coordinator decides next agent (stored in plan)
-    next_agent = plan.get("next_agent", "processor")
-    
-    return next_agent
+    return state.get("next_agent", "processor")
 
 
 def build_multi_agent_graph():

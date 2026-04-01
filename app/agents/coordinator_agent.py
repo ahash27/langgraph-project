@@ -57,7 +57,6 @@ class CoordinatorAgent(BaseAgent):
             "steps": plan_steps,
             "priority": "normal",
             "requires_tools": ["data_transformer"] if complexity > 0.5 else [],
-            "next_agent": next_agent  # Coordinator's decision
         }
         
         log_routing_decision("coordinator", next_agent, f"complexity={complexity:.2f}")

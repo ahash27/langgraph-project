@@ -102,7 +102,6 @@ class ValidatorAgent(BaseAgent):
             "validation_result": validation_result,
             "is_valid": is_valid,
             "validation_score": quality_score,
-            "issues": issues,
             "final_output": final_output,
             "next_agent": next_agent,
             "validator_status": "completed",

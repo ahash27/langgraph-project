@@ -48,7 +48,7 @@ def test_validator_agent():
 
 
 def test_validator_replaces_previous_issues():
-    """Validator should report current issues, not accumulate stale ones."""
+    """Validator should keep issues only inside validation_result."""
     agent = ValidatorAgent()
     state = {
         "processed_output": {
@@ -56,12 +56,12 @@ def test_validator_replaces_previous_issues():
             "metadata": {"status": "success"},
         },
         "processor_confidence": 1.0,
-        "issues": ["old issue"],
     }
 
     result = agent.execute(state)
 
-    assert result["issues"] == []
+    assert "issues" not in result
+    assert result["validation_result"]["issues"] == []
 
 
 def test_agents_do_not_mutate_input_history():
