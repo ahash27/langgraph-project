@@ -39,3 +39,7 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# PR/Documentation temp files
+PR_DESCRIPTION.md
+CREATE_PR_INSTRUCTIONS.md
