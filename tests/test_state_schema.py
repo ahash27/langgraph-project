@@ -1,8 +1,8 @@
 """Tests for the shared LangGraph state schema."""
 
-from typing import Annotated, List, get_args, get_origin, get_type_hints
+from typing import Annotated, Literal, get_args, get_origin, get_type_hints
 
-from app.graphs.state_schema import AgentState, merge_lists
+from app.graphs.state_schema import AgentState, SCHEMA_VERSION, merge_lists
 
 
 def test_merge_lists_appends_items():
@@ -29,6 +29,8 @@ def test_agent_state_includes_social_media_fields():
     ):
         assert field in hints
 
+    assert hints["schema_version"] == Literal["1.0"]
+
 
 def test_list_fields_use_reducers():
     """List-based fields should define merge behavior for LangGraph."""
@@ -37,7 +39,6 @@ def test_list_fields_use_reducers():
     trends_hint = hints["trends"]
     post_drafts_hint = hints["post_drafts"]
     engagement_metrics_hint = hints["engagement_metrics"]
-
     assert get_origin(trends_hint) is Annotated
     assert get_origin(post_drafts_hint) is Annotated
     assert get_origin(engagement_metrics_hint) is Annotated
@@ -45,3 +46,8 @@ def test_list_fields_use_reducers():
     assert get_args(trends_hint)[1] is merge_lists
     assert get_args(post_drafts_hint)[1] is merge_lists
     assert get_args(engagement_metrics_hint)[1] is merge_lists
+
+
+def test_schema_version_constant_is_supported():
+    """Schema version should be a declared constant used by the workflow."""
+    assert SCHEMA_VERSION == "1.0"

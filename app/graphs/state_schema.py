@@ -1,16 +1,12 @@
 """State schema for multi-agent workflows."""
 
-from operator import add
-from typing import Annotated, Dict, List, Optional, TypeVar, TypedDict, Union
+from typing import Annotated, Dict, List, Literal, Optional, TypeVar, TypedDict, Union
 
+SCHEMA_VERSION = "1.0"
 JSONPrimitive = Union[str, int, float, bool, None]
-JSONValue = Union[
-    JSONPrimitive,
-    List["JSONValue"],
-    Dict[str, "JSONValue"],
-]
+JSONList = List[JSONPrimitive]
+JSONValue = Union[JSONPrimitive, JSONList]
 Metadata = Dict[str, JSONValue]
-StringMap = Dict[str, str]
 T = TypeVar("T")
 
 
@@ -32,7 +28,7 @@ class AgentPlan(TypedDict, total=False):
 
     task: str
     complexity: float
-    steps: List[Union[str, PlanStep]]
+    steps: List[PlanStep]
     priority: str
     requires_tools: List[str]
     next_agent: str
@@ -122,7 +118,7 @@ class EngagementMetrics(TypedDict, total=False):
 class AgentState(TypedDict, total=False):
     """Shared notebook for all agents in the multi-agent graph."""
 
-    schema_version: str
+    schema_version: Literal["1.0"]
 
     # Input
     input: str
@@ -150,7 +146,7 @@ class AgentState(TypedDict, total=False):
     is_valid: bool
     validator_status: str
     validation_score: float
-    issues: Annotated[List[str], add]
+    issues: List[str]
 
     # Final output
     final_output: FinalOutput
@@ -162,14 +158,4 @@ class AgentState(TypedDict, total=False):
     workflow_status: str
 
     # Observability
-    execution_history: Annotated[List[str], add]
-
-
-class ToolExecutionState(TypedDict, total=False):
-    """State for tool execution."""
-
-    tool_name: str
-    tool_input: Metadata
-    tool_output: Metadata
-    tool_status: str
-    error: Optional[str]
+    execution_history: List[str]
