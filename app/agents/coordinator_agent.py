@@ -1,7 +1,7 @@
 """Coordinator agent - orchestrates workflow and delegates tasks"""
 
-from typing import Dict, Any
 from app.agents.base_agent import BaseAgent
+from app.graphs.state_schema import AgentPlan, AgentState, PlanStep, SCHEMA_VERSION
 from app.utils.logger import log_agent_step, log_routing_decision
 
 
@@ -23,7 +23,7 @@ class CoordinatorAgent(BaseAgent):
             description="Orchestrates workflow and delegates tasks to specialized agents"
         )
     
-    def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(self, state: AgentState) -> AgentState:
         """
         Analyze input and create execution plan with autonomous routing.
         
@@ -37,7 +37,7 @@ class CoordinatorAgent(BaseAgent):
         
         user_input = state.get("input", "")
         retry_count = state.get("retry_count", 0)
-        execution_history = state.get("execution_history", [])
+        execution_history = [*state.get("execution_history", []), "coordinator"]
         
         # Analyze complexity and determine strategy
         complexity = self._analyze_complexity(user_input)
@@ -46,27 +46,25 @@ class CoordinatorAgent(BaseAgent):
         next_agent = self._decide_next_agent(complexity, retry_count)
         
         # Generic planning logic with routing
-        plan = {
+        plan_steps: list[PlanStep] = [
+            {"name": "Analyze request", "status": "pending"},
+            {"name": "Execute processing", "status": "pending"},
+            {"name": "Validate output", "status": "pending"},
+        ]
+        plan: AgentPlan = {
             "task": user_input,
             "complexity": complexity,
-            "steps": [
-                "Analyze request",
-                "Execute processing",
-                "Validate output"
-            ],
+            "steps": plan_steps,
             "priority": "normal",
             "requires_tools": ["data_transformer"] if complexity > 0.5 else [],
-            "next_agent": next_agent  # Coordinator's decision
         }
         
         log_routing_decision("coordinator", next_agent, f"complexity={complexity:.2f}")
         log_agent_step("coordinator", {"plan": plan}, "complete")
         
-        # Update execution history
-        execution_history.append("coordinator")
-        
         return {
             **state,
+            "schema_version": SCHEMA_VERSION,
             "plan": plan,
             "next_agent": next_agent,
             "coordinator_status": "completed",

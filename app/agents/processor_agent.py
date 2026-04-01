@@ -1,7 +1,9 @@
 """Processor agent - executes main processing logic"""
 
-from typing import Dict, Any, List
+from typing import List
+
 from app.agents.base_agent import BaseAgent
+from app.graphs.state_schema import AgentPlan, AgentState, ProcessedOutput
 from app.tools.tool_registry import ToolRegistry
 from app.utils.logger import log_agent_step, log_tool_usage
 
@@ -34,7 +36,7 @@ class ProcessorAgent(BaseAgent):
         except Exception:
             pass  # Tools optional for basic operation
     
-    def _detect_intent(self, user_input: str, plan: Dict[str, Any]) -> str:
+    def _detect_intent(self, user_input: str, plan: AgentPlan) -> str:
         """
         Detect user intent from input and plan.
         
@@ -65,7 +67,7 @@ class ProcessorAgent(BaseAgent):
         
         return 'generic'
     
-    def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(self, state: AgentState) -> AgentState:
         """
         Process the task according to plan with tool integration.
         
@@ -79,7 +81,7 @@ class ProcessorAgent(BaseAgent):
         
         plan = state.get("plan", {})
         user_input = state.get("input", "")
-        execution_history = state.get("execution_history", [])
+        execution_history = [*state.get("execution_history", [])]
         
         # Detect intent
         intent = self._detect_intent(user_input, plan)
@@ -92,11 +94,11 @@ class ProcessorAgent(BaseAgent):
         return self._process_generic_request(state, plan, execution_history)
     
     def _process_trends_request(
-        self, 
-        state: Dict[str, Any], 
-        plan: Dict[str, Any],
+        self,
+        state: AgentState,
+        plan: AgentPlan,
         execution_history: List[str]
-    ) -> Dict[str, Any]:
+    ) -> AgentState:
         """Process request for Google Trends data"""
         user_input = state.get("input", "")
         
@@ -125,7 +127,7 @@ class ProcessorAgent(BaseAgent):
                 result_msg = f"Fetched {trends_data.get('count', 0)} trending topics"
             
             # Format output
-            processed_output = {
+            processed_output: ProcessedOutput = {
                 "original_input": user_input,
                 "intent": "trends",
                 "result": result_msg,
@@ -165,8 +167,6 @@ class ProcessorAgent(BaseAgent):
         
         log_agent_step("processor", {"confidence": confidence, "intent": "trends"}, "complete")
         
-        execution_history.append("processor")
-        
         return {
             **state,
             "processed_output": processed_output,
@@ -174,15 +174,15 @@ class ProcessorAgent(BaseAgent):
             "next_agent": "validator",
             "processor_status": "completed",
             "current_agent": "processor",
-            "execution_history": execution_history
+            "execution_history": [*execution_history, "processor"]
         }
     
     def _process_generic_request(
         self,
-        state: Dict[str, Any],
-        plan: Dict[str, Any],
+        state: AgentState,
+        plan: AgentPlan,
         execution_history: List[str]
-    ) -> Dict[str, Any]:
+    ) -> AgentState:
         """Process generic request with data transformation"""
         user_input = state.get("input", "")
         
@@ -207,7 +207,7 @@ class ProcessorAgent(BaseAgent):
         confidence = 1.0 - (complexity * 0.3)
         
         # Generic processing logic
-        processed_output = {
+        processed_output: ProcessedOutput = {
             "original_input": user_input,
             "transformed_input": transformed_data,
             "plan_executed": plan.get("task", ""),
@@ -221,8 +221,6 @@ class ProcessorAgent(BaseAgent):
         
         log_agent_step("processor", {"confidence": confidence}, "complete")
         
-        execution_history.append("processor")
-        
         return {
             **state,
             "processed_output": processed_output,
@@ -230,5 +228,5 @@ class ProcessorAgent(BaseAgent):
             "next_agent": "validator",
             "processor_status": "completed",
             "current_agent": "processor",
-            "execution_history": execution_history
+            "execution_history": [*execution_history, "processor"]
         }

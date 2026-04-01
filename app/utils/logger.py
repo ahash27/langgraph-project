@@ -78,7 +78,8 @@ def log_workflow_summary(state: Dict[str, Any]):
     print(f"Final Status: {state.get('workflow_status', 'completed')}")
     print(f"Validation: {'✓ Passed' if state.get('is_valid') else '✗ Failed'}")
     
-    if state.get("issues"):
-        print(f"Issues: {', '.join(state['issues'])}")
+    issues = state.get("validation_result", {}).get("issues", [])
+    if issues:
+        print(f"Issues: {', '.join(issues)}")
     
     print("=" * 70 + "\n")
