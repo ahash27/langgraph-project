@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.settings import ENVIRONMENT
 from api.routes.workflows import router as workflows_router
+from api.routes.auth import router as auth_router
 
 app = FastAPI(
     title="LangGraph API",
@@ -22,6 +23,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(workflows_router)
+app.include_router(auth_router)
 
 @app.get("/")
 async def root():
