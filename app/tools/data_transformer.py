@@ -1,7 +1,7 @@
 """Data transformation tool"""
 
-from typing import Any, Dict
 from app.tools.base_tool import BaseTool
+from app.graphs.state_schema import JSONValue
 
 
 class DataTransformer(BaseTool):
@@ -17,7 +17,7 @@ class DataTransformer(BaseTool):
             description="Transforms data between different formats and structures"
         )
     
-    def execute(self, data: Any, transform_type: str = "normalize") -> Any:
+    def execute(self, data: JSONValue, transform_type: str = "normalize") -> JSONValue:
         """
         Transform data according to specified type.
         
@@ -37,17 +37,17 @@ class DataTransformer(BaseTool):
         else:
             return data
     
-    def _normalize(self, data: Any) -> Any:
+    def _normalize(self, data: JSONValue) -> JSONValue:
         """Normalize data structure"""
         if isinstance(data, str):
             return data.strip().lower()
         return data
     
-    def _format(self, data: Any) -> str:
+    def _format(self, data: JSONValue) -> str:
         """Format data as string"""
         return str(data)
     
-    def _convert(self, data: Any) -> Dict:
+    def _convert(self, data: JSONValue) -> dict:
         """Convert data to dictionary"""
         if isinstance(data, dict):
             return data

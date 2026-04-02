@@ -1,11 +1,12 @@
 """Observability and logging utilities for multi-agent system"""
 
 import json
-from typing import Dict, Any
+from typing import Dict
+from app.graphs.state_schema import AgentState, JSONValue
 from datetime import datetime
 
 
-def log_agent_step(agent_name: str, state: Dict[str, Any], action: str = "execute"):
+def log_agent_step(agent_name: str, state: AgentState, action: str = "execute"):
     """
     Log agent execution step for observability.
     
@@ -59,7 +60,7 @@ def log_tool_usage(agent_name: str, tool_name: str, success: bool = True):
     print(f"[{timestamp}] [{agent_name.upper()}] Tool: {tool_name} {status}")
 
 
-def log_workflow_summary(state: Dict[str, Any]):
+def log_workflow_summary(state: AgentState):
     """
     Log workflow execution summary.
     

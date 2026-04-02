@@ -1,6 +1,7 @@
 """Base agent class for all agents"""
 
 from abc import ABC, abstractmethod
+from app.graphs.state_schema import AgentState
 
 from app.graphs.state_schema import AgentState
 
@@ -22,10 +23,10 @@ class BaseAgent(ABC):
         Execute the agent's logic.
         
         Args:
-            state: Current state dictionary containing all context
+            state: Current state containing all context
             
         Returns:
-            Updated state dictionary with agent's output
+            Updated state with agent's output
         """
         pass
     

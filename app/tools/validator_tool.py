@@ -1,7 +1,8 @@
 """Validation tool for checking data quality"""
 
-from typing import Any, Dict, List
+from typing import Dict, List
 from app.tools.base_tool import BaseTool
+from app.graphs.state_schema import JSONValue
 
 
 class ValidatorTool(BaseTool):
@@ -17,7 +18,7 @@ class ValidatorTool(BaseTool):
             description="Validates data quality, format, and correctness"
         )
     
-    def execute(self, data: Any, checks: List[str] = None) -> Dict[str, Any]:
+    def execute(self, data: JSONValue, checks: List[str] = None) -> Dict[str, JSONValue]:
         """
         Run validation checks on data.
         
@@ -46,7 +47,7 @@ class ValidatorTool(BaseTool):
         
         return results
     
-    def _run_check(self, data: Any, check_type: str) -> bool:
+    def _run_check(self, data: JSONValue, check_type: str) -> bool:
         """Run specific validation check"""
         if check_type == "not_empty":
             return data is not None and data != ""

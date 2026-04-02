@@ -1,12 +1,13 @@
 """Response normalizer for ensuring consistent tool output format"""
 
-from typing import Dict, Any, List
+from typing import Dict, List
+from app.graphs.state_schema import TrendsData, JSONValue
 
 
 def normalize_tool_response(
-    response: Dict[str, Any], 
+    response: Dict[str, JSONValue], 
     source_name: str
-) -> Dict[str, Any]:
+) -> TrendsData:
     """
     Normalize tool response to consistent format.
     
@@ -70,7 +71,7 @@ def normalize_tool_response(
     return normalized
 
 
-def validate_normalized_response(response: Dict[str, Any]) -> bool:
+def validate_normalized_response(response: TrendsData) -> bool:
     """
     Validate that a response has been properly normalized.
     
@@ -101,7 +102,7 @@ def validate_normalized_response(response: Dict[str, Any]) -> bool:
 
 
 def compute_trend_score(
-    trend: Dict[str, Any],
+    trend: Dict[str, JSONValue],
     source_count: int,
     rank_sum: int
 ) -> float:

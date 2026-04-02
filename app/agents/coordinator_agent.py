@@ -3,6 +3,7 @@
 from app.agents.base_agent import BaseAgent
 from app.graphs.state_schema import AgentPlan, AgentState, PlanStep, SCHEMA_VERSION
 from app.utils.logger import log_agent_step, log_routing_decision
+from app.graphs.state_schema import AgentState, AgentPlan
 
 
 class CoordinatorAgent(BaseAgent):
@@ -46,17 +47,15 @@ class CoordinatorAgent(BaseAgent):
         next_agent = self._decide_next_agent(complexity, retry_count)
         
         # Generic planning logic with routing
-        plan_steps: list[PlanStep] = [
-            {"name": "Analyze request", "status": "pending"},
-            {"name": "Execute processing", "status": "pending"},
-            {"name": "Validate output", "status": "pending"},
-        ]
         plan: AgentPlan = {
             "task": user_input,
             "complexity": complexity,
-            "steps": plan_steps,
-            "priority": "normal",
-            "requires_tools": ["data_transformer"] if complexity > 0.5 else [],
+            "steps": [
+                "Analyze request",
+                "Execute processing",
+                "Validate output"
+            ],
+            "requires_tools": ["data_transformer"] if complexity > 0.5 else []
         }
         
         log_routing_decision("coordinator", next_agent, f"complexity={complexity:.2f}")
