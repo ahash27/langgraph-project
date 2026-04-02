@@ -113,13 +113,15 @@ class ProcessorAgent(BaseAgent):
                 log_tool_usage("processor", "trends_aggregator", success=True)
                 
                 # Extract tools dynamically from aggregator response
+                # Resilient to schema changes: try raw_sources, then sources, then empty list
+                sources = trends_data.get("raw_sources") or trends_data.get("sources") or []
                 tools_used = [
                     source.get("source")
-                    for source in trends_data.get("raw_sources", [])
+                    for source in sources
                     if source.get("status") == "success" and source.get("source")
                 ]
                 
-                # Fallback if raw_sources not available
+                # Fallback if no successful sources found
                 if not tools_used:
                     tools_used = ["trends_aggregator"]
                 
