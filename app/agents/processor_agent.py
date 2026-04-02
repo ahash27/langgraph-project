@@ -112,6 +112,20 @@ class ProcessorAgent(BaseAgent):
                 trends_data = aggregator_tool.safe_execute(region=region)
                 log_tool_usage("processor", "trends_aggregator", success=True)
                 
+                # Extract tools dynamically from aggregator response
+                tools_used = [
+                    source.get("source")
+                    for source in trends_data.get("raw_sources", [])
+                    if source.get("status") == "success" and source.get("source")
+                ]
+                
+                # Fallback if raw_sources not available
+                if not tools_used:
+                    tools_used = ["trends_aggregator"]
+                
+                # Format data source string
+                data_source = ", ".join(tools_used) if tools_used else "Multi-source aggregator"
+                
                 # Format aggregated result
                 result_msg = f"Fetched {trends_data['count']} trending topics from {trends_data['sources_successful']} sources"
             else:
@@ -122,6 +136,8 @@ class ProcessorAgent(BaseAgent):
                     include_related=False  # Faster, avoid rate limits
                 )
                 log_tool_usage("processor", "google_trends", success=True)
+                tools_used = ["google_trends"]
+                data_source = "Google Trends"
                 result_msg = f"Fetched {trends_data.get('count', 0)} trending topics"
             
             # Format output
@@ -132,8 +148,8 @@ class ProcessorAgent(BaseAgent):
                 "trends_data": trends_data,
                 "metadata": {
                     "status": "success",
-                    "tools_used": ["google_trends"],
-                    "data_source": "Google Trends"
+                    "tools_used": tools_used,
+                    "data_source": data_source
                 }
             }
             
@@ -145,9 +161,12 @@ class ProcessorAgent(BaseAgent):
             # Log detailed error for debugging
             import traceback
             error_details = traceback.format_exc()
-            print(f"\n[ERROR] Google Trends API failed:")
+            print(f"\n[ERROR] Trends API failed:")
             print(f"  Error: {str(e)}")
             print(f"  Details: {error_details}\n")
+            
+            # Determine which tool failed
+            failed_tool = "trends_aggregator" if "trends_aggregator" in self.tools else "google_trends"
             
             processed_output = {
                 "original_input": user_input,
@@ -157,7 +176,7 @@ class ProcessorAgent(BaseAgent):
                 "error_details": error_details,
                 "metadata": {
                     "status": "error",
-                    "tools_used": ["google_trends"]
+                    "tools_used": [failed_tool]
                 }
             }
             

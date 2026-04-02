@@ -34,27 +34,27 @@ class GoogleTrendsTool(BaseTool):
     """
     
     # Region mapping for normalization
-    # Note: Google Trends uses specific country codes
-    # Some regions may not support trending_searches()
+    # Returns tuple: (normalized_name, ISO_country_code)
+    # ISO codes are used for pytrends geo parameter
     REGION_MAP = {
-        "india": "india",
-        "in": "india",
-        "us": "united_states",
-        "usa": "united_states",
-        "united states": "united_states",
-        "uk": "united_kingdom",
-        "gb": "united_kingdom",
-        "united kingdom": "united_kingdom",
-        "canada": "canada",
-        "ca": "canada",
-        "australia": "australia",
-        "au": "australia",
-        "japan": "japan",
-        "jp": "japan",
-        "germany": "germany",
-        "de": "germany",
-        "france": "france",
-        "fr": "france"
+        "india": ("india", "IN"),
+        "in": ("india", "IN"),
+        "us": ("united_states", "US"),
+        "usa": ("united_states", "US"),
+        "united states": ("united_states", "US"),
+        "uk": ("united_kingdom", "GB"),
+        "gb": ("united_kingdom", "GB"),
+        "united kingdom": ("united_kingdom", "GB"),
+        "canada": ("canada", "CA"),
+        "ca": ("canada", "CA"),
+        "australia": ("australia", "AU"),
+        "au": ("australia", "AU"),
+        "japan": ("japan", "JP"),
+        "jp": ("japan", "JP"),
+        "germany": ("germany", "DE"),
+        "de": ("germany", "DE"),
+        "france": ("france", "FR"),
+        "fr": ("france", "FR")
     }
     
     # Regions known to work with trending_searches()
@@ -89,7 +89,7 @@ class GoogleTrendsTool(BaseTool):
                 "pytrends is required. Install with: pip install pytrends"
             )
     
-    def _normalize_region(self, region: str) -> str:
+    def _normalize_region(self, region: str) -> tuple:
         """
         Normalize region code to pytrends format.
         
@@ -97,12 +97,13 @@ class GoogleTrendsTool(BaseTool):
             region: Region code or name
             
         Returns:
-            Normalized region code
+            Tuple of (normalized_region_name, ISO_country_code)
+            ISO code is used for pytrends geo parameter
         """
         region_lower = region.lower().strip()
-        return self.REGION_MAP.get(region_lower, region_lower)
+        return self.REGION_MAP.get(region_lower, (region_lower, ""))
     
-    def fetch_trending_searches(self, region: str = "united_states") -> List[str]:
+    def fetch_trending_searches(self, region: str = "united_states", geo_code: str = "") -> List[str]:
         """
         Fetch current trending searches for a region.
         
@@ -111,6 +112,7 @@ class GoogleTrendsTool(BaseTool):
         
         Args:
             region: Region code (e.g., 'united_states', 'united_kingdom')
+            geo_code: ISO country code for API (e.g., 'US', 'GB')
             
         Returns:
             List of trending search terms
@@ -127,7 +129,7 @@ class GoogleTrendsTool(BaseTool):
             self.pytrends.build_payload(
                 popular_keywords[:5],  # Limit to 5 keywords
                 timeframe='now 7-d',
-                geo=region.upper() if len(region) == 2 else ''
+                geo=geo_code  # Use ISO country code
             )
             
             df = self.pytrends.interest_over_time()
@@ -194,8 +196,8 @@ class GoogleTrendsTool(BaseTool):
             Default region changed to 'united_states' due to API limitations.
             Not all regions support trending_searches().
         """
-        # Normalize region
-        normalized_region = self._normalize_region(region)
+        # Normalize region and get ISO code
+        normalized_region, geo_code = self._normalize_region(region)
         
         # If specific keyword provided, analyze it
         if keyword:
@@ -212,7 +214,7 @@ class GoogleTrendsTool(BaseTool):
             }
         
         # Otherwise, fetch trending searches
-        trends = self.fetch_trending_searches(normalized_region)
+        trends = self.fetch_trending_searches(normalized_region, geo_code)
         results = []
         
         for index, topic in enumerate(trends, start=1):
