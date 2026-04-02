@@ -6,10 +6,11 @@ import json
 import os
 import time
 import uuid
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Dict, Optional, TypedDict, cast
 
 from dotenv import load_dotenv
 
@@ -23,16 +24,37 @@ REDIRECT_URI = "http://localhost:8000/callback"
 # Override via LINKEDIN_SCOPES in .env when needed.
 SCOPES_DEFAULT = "w_member_social"
 
-
-def _get_scopes() -> str:
-    _load_env_file()
-    return os.getenv("LINKEDIN_SCOPES", SCOPES_DEFAULT)
-
 # If token expires within this window, refresh before use.
 REFRESH_BUFFER_SECONDS = 60
 
 # In-memory CSRF-ish state store for the current process (dev-friendly).
 _OAUTH_STATES: Dict[str, float] = {}
+
+
+class LinkedInTokenEndpointResponse(TypedDict, total=False):
+    """JSON body from LinkedIn's accessToken endpoint."""
+
+    access_token: str
+    expires_in: int
+    refresh_token: str
+    scope: str
+    token_type: str
+
+
+class StoredLinkedInTokens(TypedDict, total=False):
+    """Tokens we persist; includes LinkedIn fields plus obtained_at."""
+
+    access_token: str
+    expires_in: int
+    obtained_at: float
+    refresh_token: str
+    scope: str
+    token_type: str
+
+
+def _get_scopes() -> str:
+    _load_env_file()
+    return os.getenv("LINKEDIN_SCOPES", SCOPES_DEFAULT)
 
 
 def _load_env_file() -> None:
@@ -42,8 +64,6 @@ def _load_env_file() -> None:
 
 
 def _require_linkedin_credentials() -> None:
-    # Load from `.env` (absolute path). This makes the endpoint robust even if
-    # the server started before the `.env` file was created.
     _load_env_file()
 
     client_id = os.getenv("LINKEDIN_CLIENT_ID")
@@ -72,22 +92,23 @@ def _tokens_path() -> Path:
     return data_dir / "linkedin_tokens.json"
 
 
-def load_tokens() -> Optional[Dict[str, Any]]:
+def load_tokens() -> Optional[StoredLinkedInTokens]:
     path = _tokens_path()
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    raw: object = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return None
+    return cast(StoredLinkedInTokens, raw)
 
 
-def save_tokens(tokens: Dict[str, Any]) -> None:
+def save_tokens(tokens: StoredLinkedInTokens) -> None:
     path = _tokens_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(tokens, indent=2), encoding="utf-8")
 
 
-def _compute_expiry(tokens: Dict[str, Any]) -> float:
-    # LinkedIn returns `expires_in` (seconds) on initial token exchange/refresh.
-    # We store `obtained_at` to compute a deterministic expires_at.
+def _compute_expiry(tokens: StoredLinkedInTokens) -> float:
     expires_in = tokens.get("expires_in")
     obtained_at = tokens.get("obtained_at")
     if expires_in is None or obtained_at is None:
@@ -95,7 +116,9 @@ def _compute_expiry(tokens: Dict[str, Any]) -> float:
     return float(obtained_at) + float(expires_in)
 
 
-def token_is_expired_or_soon(tokens: Dict[str, Any], buffer_seconds: int = REFRESH_BUFFER_SECONDS) -> bool:
+def token_is_expired_or_soon(
+    tokens: StoredLinkedInTokens, buffer_seconds: int = REFRESH_BUFFER_SECONDS
+) -> bool:
     expires_at = _compute_expiry(tokens)
     if expires_at == 0.0:
         return True
@@ -133,7 +156,7 @@ def build_linkedin_authorization_url(state: str) -> str:
     return f"{AUTHORIZATION_ENDPOINT}?{urllib.parse.urlencode(params)}"
 
 
-def _post_form(url: str, form: Dict[str, str]) -> Dict[str, Any]:
+def _post_form(url: str, form: Dict[str, str]) -> LinkedInTokenEndpointResponse:
     body = urllib.parse.urlencode(form).encode("utf-8")
     req = urllib.request.Request(
         url,
@@ -143,14 +166,39 @@ def _post_form(url: str, form: Dict[str, str]) -> Dict[str, Any]:
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            raw = resp.read().decode("utf-8")
-            return json.loads(raw) if raw else {}
+            raw_txt = resp.read().decode("utf-8")
+            payload: object = json.loads(raw_txt) if raw_txt else {}
+            if not isinstance(payload, dict):
+                return {}
+            return cast(LinkedInTokenEndpointResponse, payload)
     except urllib.error.HTTPError as e:
-        raw = e.read().decode("utf-8") if e.fp else ""
-        raise RuntimeError(f"LinkedIn OAuth token exchange failed: {e.code} {raw}") from e
+        raw_err = e.read().decode("utf-8") if e.fp else ""
+        raise RuntimeError(f"LinkedIn OAuth token exchange failed: {e.code} {raw_err}") from e
 
 
-def exchange_code_for_tokens(code: str) -> Dict[str, Any]:
+def _merge_stored_tokens(
+    api: LinkedInTokenEndpointResponse, prior_refresh: Optional[str] = None
+) -> StoredLinkedInTokens:
+    out: StoredLinkedInTokens = {}
+    if "access_token" in api:
+        out["access_token"] = api["access_token"]
+    if "expires_in" in api:
+        out["expires_in"] = int(api["expires_in"])
+    if "refresh_token" in api:
+        out["refresh_token"] = api["refresh_token"]
+    elif prior_refresh is not None:
+        out["refresh_token"] = prior_refresh
+    if "scope" in api:
+        out["scope"] = api["scope"]
+    if "token_type" in api:
+        out["token_type"] = api["token_type"]
+    out["obtained_at"] = time.time()
+    if "expires_in" not in out:
+        out["expires_in"] = 0
+    return out
+
+
+def exchange_code_for_tokens(code: str) -> StoredLinkedInTokens:
     _require_linkedin_credentials()
     client_id, client_secret = _get_linkedin_credentials()
     form = {
@@ -161,17 +209,13 @@ def exchange_code_for_tokens(code: str) -> Dict[str, Any]:
         "client_secret": client_secret,
     }
     tokens = _post_form(TOKEN_ENDPOINT, form)
-
-    # Normalize expiration + timekeeping so refresh checks work reliably.
-    obtained_at = time.time()
-    tokens["obtained_at"] = obtained_at
-    if "expires_in" not in tokens:
-        # LinkedIn should include it, but keep a safe default.
-        tokens["expires_in"] = 0
-    return tokens
+    stored = _merge_stored_tokens(tokens)
+    if not stored.get("access_token"):
+        raise RuntimeError("LinkedIn token response missing access_token.")
+    return stored
 
 
-def refresh_access_token() -> Dict[str, Any]:
+def refresh_access_token() -> StoredLinkedInTokens:
     _require_linkedin_credentials()
     client_id, client_secret = _get_linkedin_credentials()
 
@@ -189,16 +233,12 @@ def refresh_access_token() -> Dict[str, Any]:
         "client_id": client_id,
         "client_secret": client_secret,
     }
-    new_tokens = _post_form(TOKEN_ENDPOINT, form)
-    # Preserve old refresh_token if LinkedIn doesn't return it every time.
-    if "refresh_token" not in new_tokens:
-        new_tokens["refresh_token"] = refresh_token
-
-    new_tokens["obtained_at"] = time.time()
-    if "expires_in" not in new_tokens:
-        new_tokens["expires_in"] = tokens.get("expires_in", 0)
-    save_tokens(new_tokens)
-    return new_tokens
+    new_api = _post_form(TOKEN_ENDPOINT, form)
+    merged = _merge_stored_tokens(new_api, prior_refresh=str(refresh_token))
+    if not merged.get("access_token"):
+        raise RuntimeError("LinkedIn refresh response missing access_token.")
+    save_tokens(merged)
+    return merged
 
 
 def ensure_fresh_access_token() -> str:
@@ -208,10 +248,12 @@ def ensure_fresh_access_token() -> str:
 
     if token_is_expired_or_soon(tokens):
         refresh_access_token()
-        tokens = load_tokens() or {}
+        tokens = load_tokens()
+
+    if not tokens:
+        raise RuntimeError("No stored LinkedIn tokens found after refresh.")
 
     access_token = tokens.get("access_token")
     if not access_token:
         raise RuntimeError("Stored LinkedIn tokens are missing `access_token`.")
     return str(access_token)
-
