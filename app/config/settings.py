@@ -28,6 +28,7 @@ API_RELOAD = os.getenv("API_RELOAD", "true").lower() == "true"
 TWITTER_API_KEY = os.getenv("TWITTER_API_KEY")
 TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET")
 LINKEDIN_CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID")
+LINKEDIN_CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET")
 
 # Database
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./langgraph.db")
