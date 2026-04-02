@@ -1,9 +1,10 @@
 """Google Trends tool for fetching trending topics and related queries"""
 
-from typing import Dict, List, Any, Optional
-import time
+from typing import List, Optional, Tuple
 from app.tools.base_tool import BaseTool
 from app.utils.logger import log_tool_usage
+from app.graphs.state_schema import TrendsData, TrendItem
+import time
 
 
 class GoogleTrendsTool(BaseTool):
@@ -89,7 +90,7 @@ class GoogleTrendsTool(BaseTool):
                 "pytrends is required. Install with: pip install pytrends"
             )
     
-    def _normalize_region(self, region: str) -> tuple:
+    def _normalize_region(self, region: str) -> Tuple[str, str]:
         """
         Normalize region code to pytrends format.
         
@@ -147,7 +148,7 @@ class GoogleTrendsTool(BaseTool):
             # Return popular keywords as fallback
             return popular_keywords[:10]
     
-    def fetch_related_queries(self, keyword: str) -> Dict[str, Any]:
+    def fetch_related_queries(self, keyword: str) -> Tuple[List[str], Optional[str]]:
         """
         Fetch related queries for a specific keyword.
         
@@ -155,32 +156,26 @@ class GoogleTrendsTool(BaseTool):
             keyword: Search keyword
             
         Returns:
-            Dictionary with queries list and optional error
+            Tuple of (queries_list, error_message)
         """
         try:
             self.pytrends.build_payload([keyword], timeframe='now 7-d')
             related = self.pytrends.related_queries()
             
             if keyword in related and related[keyword]["top"] is not None:
-                queries = related[keyword]["top"]["query"].tolist()
-                return {
-                    "queries": queries[:5],  # Top 5 related queries
-                    "error": None
-                }
-            return {"queries": [], "error": None}
+                queries: List[str] = related[keyword]["top"]["query"].tolist()
+                return (queries[:5], None)
+            return ([], None)
         except Exception as e:
             # Don't hide failures - return error info
-            return {
-                "queries": [],
-                "error": f"Failed to fetch related queries: {str(e)}"
-            }
+            return ([], f"Failed to fetch related queries: {str(e)}")
     
     def execute(
         self,
         keyword: Optional[str] = None,
         region: str = "united_states",
         include_related: bool = True
-    ) -> Dict[str, Any]:
+    ) -> TrendsData:
         """
         Execute Google Trends data fetch.
         
@@ -190,7 +185,7 @@ class GoogleTrendsTool(BaseTool):
             include_related: Whether to fetch related queries
             
         Returns:
-            Dictionary with trends data
+            TrendsData with trends information
             
         Note:
             Default region changed to 'united_states' due to API limitations.
@@ -201,56 +196,59 @@ class GoogleTrendsTool(BaseTool):
         
         # If specific keyword provided, analyze it
         if keyword:
-            related_result = {"queries": [], "error": None}
-            if include_related:
-                related_result = self.fetch_related_queries(keyword)
+            related_queries: List[str] = []
+            related_error: Optional[str] = None
             
-            return {
-                "region": normalized_region,
-                "keyword": keyword,
-                "related_queries": related_result["queries"],
-                "related_queries_error": related_result["error"],
-                "trends": []
-            }
+            if include_related:
+                related_queries, related_error = self.fetch_related_queries(keyword)
+            
+            return TrendsData(
+                region=normalized_region,
+                keyword=keyword,  # type: ignore
+                related_queries=related_queries,  # type: ignore
+                related_queries_error=related_error,  # type: ignore
+                trends=[]
+            )
         
         # Otherwise, fetch trending searches
         trends = self.fetch_trending_searches(normalized_region, geo_code)
-        results = []
+        results: List[TrendItem] = []
         
         for index, topic in enumerate(trends, start=1):
-            trend_data = {
-                "topic": topic,
-                "rank": index,  # Ranking as proxy for score (1-10)
-                "score": None,  # Google Trends doesn't provide absolute scores
-                "related_queries": [],
-                "related_queries_error": None
-            }
+            related_queries = []
+            related_error = None
             
             # Fetch related queries if requested
             if include_related:
-                related_result = self.fetch_related_queries(topic)
-                trend_data["related_queries"] = related_result["queries"]
-                trend_data["related_queries_error"] = related_result["error"]
+                related_queries, related_error = self.fetch_related_queries(topic)
                 
                 # Rate limiting protection
-                if related_result["error"] is None:
+                if related_error is None:
                     time.sleep(1)
             
-            results.append(trend_data)
+            trend_item: TrendItem = {
+                "topic": topic,
+                "rank": index,
+                "score": None,
+                "source": "google_trends",
+                "related_queries": related_queries,
+                "related_queries_error": related_error
+            }
+            results.append(trend_item)
         
-        return {
-            "source": "google_trends",
-            "status": "success",
-            "region": normalized_region,
-            "trends": results,
-            "count": len(results)
-        }
+        return TrendsData(
+            source="google_trends",
+            status="success",
+            region=normalized_region,
+            trends=results,
+            count=len(results)
+        )
     
     def safe_execute(
         self,
         max_retries: int = 3,
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> TrendsData:
         """
         Execute with retry logic and exponential backoff.
         
@@ -259,7 +257,7 @@ class GoogleTrendsTool(BaseTool):
             **kwargs: Arguments to pass to execute()
             
         Returns:
-            Trends data dictionary
+            TrendsData
             
         Raises:
             Exception: If all retries fail

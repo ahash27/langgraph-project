@@ -1,7 +1,7 @@
 """Base agent class for all agents"""
 
-from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
+from app.graphs.state_schema import AgentState
 
 
 class BaseAgent(ABC):
@@ -16,18 +16,18 @@ class BaseAgent(ABC):
         self.description = description
     
     @abstractmethod
-    def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(self, state: AgentState) -> AgentState:
         """
         Execute the agent's logic.
         
         Args:
-            state: Current state dictionary containing all context
+            state: Current state containing all context
             
         Returns:
-            Updated state dictionary with agent's output
+            Updated state with agent's output
         """
         pass
     
-    def __call__(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def __call__(self, state: AgentState) -> AgentState:
         """Allow agent to be called as a function"""
         return self.execute(state)
