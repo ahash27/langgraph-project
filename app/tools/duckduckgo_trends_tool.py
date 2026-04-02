@@ -1,9 +1,10 @@
 """DuckDuckGo trends tool for fetching trending topics via search"""
 
-from typing import Dict, List, Any, Optional
+from typing import List, Optional
 import time
 from app.tools.base_tool import BaseTool
 from app.utils.logger import log_tool_usage
+from app.graphs.state_schema import TrendsData, TrendItem
 
 
 class DuckDuckGoTrendsTool(BaseTool):
@@ -43,7 +44,7 @@ class DuckDuckGoTrendsTool(BaseTool):
         self, 
         keyword: str = "trending topics today",
         max_results: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> List[TrendItem]:
         """
         Fetch trending topics via DuckDuckGo search.
         
@@ -54,20 +55,21 @@ class DuckDuckGoTrendsTool(BaseTool):
         Returns:
             List of trending topics with metadata
         """
-        results = []
+        results: List[TrendItem] = []
         
         try:
             with self.ddgs() as ddgs:
                 search_results = ddgs.text(keyword, max_results=max_results)
                 
                 for idx, item in enumerate(search_results, start=1):
-                    results.append({
+                    trend_item: TrendItem = {
                         "topic": item.get("title", ""),
                         "description": item.get("body", ""),
                         "source": "duckduckgo",
                         "link": item.get("href", ""),
                         "rank": idx
-                    })
+                    }
+                    results.append(trend_item)
             
             return results
             
@@ -79,7 +81,7 @@ class DuckDuckGoTrendsTool(BaseTool):
         keyword: Optional[str] = None,
         region: str = "us",
         max_results: int = 10
-    ) -> Dict[str, Any]:
+    ) -> TrendsData:
         """
         Execute DuckDuckGo trends search.
         
@@ -100,19 +102,19 @@ class DuckDuckGoTrendsTool(BaseTool):
         # Fetch results
         trends = self.fetch_trending_topics(search_query, max_results)
         
-        return {
-            "source": "duckduckgo",
-            "status": "success",
-            "query": search_query,
-            "count": len(trends),
-            "trends": trends
-        }
+        return TrendsData(
+            source="duckduckgo",
+            status="success",
+            query=search_query,  # type: ignore
+            count=len(trends),
+            trends=trends
+        )
     
     def safe_execute(
         self,
         max_retries: int = 3,
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> TrendsData:
         """
         Execute with retry logic.
         

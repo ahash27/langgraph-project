@@ -1,9 +1,10 @@
 """Validator agent - validates and quality checks output"""
 
-from typing import Dict, Any, List
+from typing import List
 from app.agents.base_agent import BaseAgent
 from app.tools.tool_registry import ToolRegistry
-from app.utils.logger import log_agent_step, log_tool_usage, log_routing_decision
+from app.utils.logger import log_agent_step, log_tool_usage
+from app.graphs.state_schema import AgentState, ProcessedOutput, ValidationResult, Metadata, log_routing_decision
 
 
 class ValidatorAgent(BaseAgent):
@@ -33,7 +34,7 @@ class ValidatorAgent(BaseAgent):
         except Exception:
             pass
     
-    def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(self, state: AgentState) -> AgentState:
         """
         Validate the processed output with retry logic.
         
@@ -113,7 +114,7 @@ class ValidatorAgent(BaseAgent):
             "execution_history": execution_history
         }
     
-    def _validate_output(self, processed: Dict[str, Any], confidence: float) -> List[str]:
+    def _validate_output(self, processed: ProcessedOutput, confidence: float) -> List[str]:
         """Run validation checks and return issues"""
         issues = []
         
@@ -147,7 +148,7 @@ class ValidatorAgent(BaseAgent):
     
     def _calculate_quality_score(
         self, 
-        processed: Dict[str, Any], 
+        processed: ProcessedOutput, 
         confidence: float, 
         issues: List[str]
     ) -> float:

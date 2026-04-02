@@ -1,6 +1,6 @@
 """Multi-source trends aggregator tool"""
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Optional
 from collections import Counter
 from app.tools.base_tool import BaseTool
 from app.tools.response_normalizer import (
@@ -9,6 +9,7 @@ from app.tools.response_normalizer import (
     compute_trend_score
 )
 from app.utils.logger import log_tool_usage
+from app.graphs.state_schema import TrendsData, JSONValue
 import re
 
 
@@ -27,7 +28,7 @@ class TrendsAggregatorTool(BaseTool):
     This is a production-ready pattern for multi-source data aggregation.
     """
     
-    def __init__(self, tools: Dict[str, Any]):
+    def __init__(self, tools: Dict[str, BaseTool]):
         super().__init__(
             name="trends_aggregator",
             description="Aggregates trending topics from multiple sources with self-healing normalization"
@@ -57,8 +58,8 @@ class TrendsAggregatorTool(BaseTool):
     
     def _merge_and_rank(
         self, 
-        sources_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        sources_data: List[TrendsData]
+    ) -> List[Dict[str, JSONValue]]:
         """
         Merge results from multiple sources and rank by frequency.
         
@@ -145,7 +146,7 @@ class TrendsAggregatorTool(BaseTool):
         keyword: Optional[str] = None,
         region: str = "us",
         max_results: int = 10
-    ) -> Dict[str, Any]:
+    ) -> TrendsData:
         """
         Execute multi-source trends aggregation.
         
@@ -245,7 +246,7 @@ class TrendsAggregatorTool(BaseTool):
         self,
         max_retries: int = 1,  # Aggregator doesn't need many retries
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> TrendsData:
         """
         Execute with minimal retry (sources handle their own retries).
         

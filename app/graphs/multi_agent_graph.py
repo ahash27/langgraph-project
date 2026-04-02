@@ -5,10 +5,10 @@ from app.agents.coordinator_agent import CoordinatorAgent
 from app.agents.processor_agent import ProcessorAgent
 from app.agents.validator_agent import ValidatorAgent
 from app.utils.logger import log_routing_decision
-from typing import Dict, Any
+from app.graphs.state_schema import AgentState
 
 
-def route_after_validator(state: Dict[str, Any]) -> str:
+def route_after_validator(state: AgentState) -> str:
     """
     Dynamic routing after validator.
     
@@ -30,7 +30,7 @@ def route_after_validator(state: Dict[str, Any]) -> str:
         return "end"
 
 
-def route_after_coordinator(state: Dict[str, Any]) -> str:
+def route_after_coordinator(state: AgentState) -> str:
     """
     Dynamic routing after coordinator.
     

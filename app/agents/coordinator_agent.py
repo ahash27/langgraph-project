@@ -1,8 +1,8 @@
 """Coordinator agent - orchestrates workflow and delegates tasks"""
 
-from typing import Dict, Any
 from app.agents.base_agent import BaseAgent
 from app.utils.logger import log_agent_step, log_routing_decision
+from app.graphs.state_schema import AgentState, AgentPlan
 
 
 class CoordinatorAgent(BaseAgent):
@@ -23,7 +23,7 @@ class CoordinatorAgent(BaseAgent):
             description="Orchestrates workflow and delegates tasks to specialized agents"
         )
     
-    def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(self, state: AgentState) -> AgentState:
         """
         Analyze input and create execution plan with autonomous routing.
         
@@ -46,7 +46,7 @@ class CoordinatorAgent(BaseAgent):
         next_agent = self._decide_next_agent(complexity, retry_count)
         
         # Generic planning logic with routing
-        plan = {
+        plan: AgentPlan = {
             "task": user_input,
             "complexity": complexity,
             "steps": [
@@ -54,9 +54,7 @@ class CoordinatorAgent(BaseAgent):
                 "Execute processing",
                 "Validate output"
             ],
-            "priority": "normal",
-            "requires_tools": ["data_transformer"] if complexity > 0.5 else [],
-            "next_agent": next_agent  # Coordinator's decision
+            "requires_tools": ["data_transformer"] if complexity > 0.5 else []
         }
         
         log_routing_decision("coordinator", next_agent, f"complexity={complexity:.2f}")

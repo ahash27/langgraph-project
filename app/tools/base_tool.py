@@ -1,7 +1,7 @@
 """Base tool class for all tools"""
 
-from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
+from app.graphs.state_schema import JSONValue
 
 
 class BaseTool(ABC):
@@ -16,7 +16,7 @@ class BaseTool(ABC):
         self.description = description
     
     @abstractmethod
-    def execute(self, **kwargs) -> Any:
+    def execute(self, **kwargs) -> JSONValue:
         """
         Execute the tool's functionality.
         
@@ -28,6 +28,6 @@ class BaseTool(ABC):
         """
         pass
     
-    def __call__(self, **kwargs) -> Any:
+    def __call__(self, **kwargs) -> JSONValue:
         """Allow tool to be called as a function"""
         return self.execute(**kwargs)
