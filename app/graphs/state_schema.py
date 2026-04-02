@@ -1,4 +1,4 @@
-"""State schema for multi-agent workflows"""
+"""State schema for multi-agent workflows."""
 
 from typing import TypedDict, Optional, Dict, List, Union
 
@@ -72,11 +72,10 @@ class ValidationResult(TypedDict, total=False):
 
 
 class AgentState(TypedDict, total=False):
-    """
-    Structured state schema for multi-agent system.
-    
-    This ensures type safety and clear data contracts between agents.
-    """
+    """Shared notebook for all agents in the multi-agent graph."""
+
+    schema_version: Literal["1.0"]
+
     # Input
     input: str
     region: str
@@ -85,19 +84,18 @@ class AgentState(TypedDict, total=False):
     plan: AgentPlan
     next_agent: str
     coordinator_status: str
-    
+
     # Processor outputs
     processed_output: ProcessedOutput
     processor_status: str
     processor_confidence: float
-    
+
     # Validator outputs
     validation_result: ValidationResult
     is_valid: bool
     validator_status: str
     validation_score: float
-    issues: List[str]
-    
+
     # Final output
     final_output: ProcessedOutput
     
@@ -106,7 +104,7 @@ class AgentState(TypedDict, total=False):
     max_retries: int
     current_agent: str
     workflow_status: str
-    
+
     # Observability
     execution_history: List[str]
 

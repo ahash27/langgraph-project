@@ -3,6 +3,8 @@
 from abc import ABC, abstractmethod
 from app.graphs.state_schema import AgentState
 
+from app.graphs.state_schema import AgentState
+
 
 class BaseAgent(ABC):
     """

@@ -47,9 +47,7 @@ def test_route_after_validator_max_retries():
 def test_route_after_coordinator():
     """Test coordinator routing logic"""
     state = {
-        "plan": {
-            "complexity": 0.7
-        }
+        "next_agent": "processor"
     }
     
     result = route_after_coordinator(state)

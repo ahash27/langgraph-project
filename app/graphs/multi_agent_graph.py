@@ -1,11 +1,12 @@
-"""Multi-agent workflow graph with dynamic routing"""
+"""Multi-agent workflow graph with dynamic routing."""
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
+
 from app.agents.coordinator_agent import CoordinatorAgent
 from app.agents.processor_agent import ProcessorAgent
 from app.agents.validator_agent import ValidatorAgent
-from app.utils.logger import log_routing_decision
 from app.graphs.state_schema import AgentState
+from app.utils.logger import log_routing_decision
 
 
 def route_after_validator(state: AgentState) -> str:
@@ -34,15 +35,10 @@ def route_after_coordinator(state: AgentState) -> str:
     """
     Dynamic routing after coordinator.
     
-    COORDINATOR DECIDES - reads from plan's next_agent field.
+    COORDINATOR DECIDES - reads from top-level next_agent field.
     This is TRUE agent autonomy.
     """
-    plan = state.get("plan", {})
-    
-    # Coordinator decides next agent (stored in plan)
-    next_agent = plan.get("next_agent", "processor")
-    
-    return next_agent
+    return state.get("next_agent", "processor")
 
 
 def build_multi_agent_graph():
@@ -64,7 +60,7 @@ def build_multi_agent_graph():
     validator = ValidatorAgent()
     
     # Build graph
-    builder = StateGraph(dict)
+    builder = StateGraph(AgentState)
     
     # Add agent nodes
     builder.add_node("coordinator", coordinator)
