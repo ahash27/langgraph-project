@@ -1,6 +1,6 @@
 """Processor agent - executes main processing logic"""
 
-from typing import List
+from typing import List, Set
 from app.agents.base_agent import BaseAgent
 from app.tools.tool_registry import ToolRegistry
 from app.utils.logger import log_agent_step, log_tool_usage
@@ -9,7 +9,8 @@ from app.graphs.state_schema import (
     AgentPlan,
     ProcessedOutput,
     TrendsData,
-    Metadata
+    Metadata,
+    TrendItem
 )
 
 
@@ -23,7 +24,12 @@ class ProcessorAgent(BaseAgent):
     - Generate intermediate results
     - Provide confidence scores
     - Integrate with external data sources (e.g., Google Trends)
+    - Orchestrate trends fetching with filtering and deduplication
     """
+    
+    # Configuration constants
+    RELEVANCE_THRESHOLD = 100.0  # Minimum score for relevance filtering
+    MAX_TRENDS = 5  # Maximum number of trends to return
     
     def __init__(self):
         super().__init__(
@@ -72,6 +78,238 @@ class ProcessorAgent(BaseAgent):
         
         return 'generic'
     
+    # ========================================
+    # TRENDS ENGINE - Main Orchestrator
+    # ========================================
+    
+    def fetch_trends(self, state: AgentState) -> TrendsData:
+        """
+        Main entry point for trends processing.
+        
+        This orchestrates the entire trends pipeline:
+        1. Fetch raw trends from sources
+        2. Filter by relevance threshold
+        3. Deduplicate against recent trends (7 days)
+        4. Limit to max results
+        
+        Args:
+            state: Agent state containing region and other params
+            
+        Returns:
+            Filtered and processed TrendsData
+        """
+        print(f"[TRENDS_ENGINE] Starting pipeline...")
+        
+        # Step 1: Get raw trends from aggregator
+        trends_data = self._get_raw_trends(state)
+        initial_count = trends_data.get("count", 0)
+        print(f"[TRENDS_ENGINE] raw_trends: {initial_count} fetched")
+        
+        # Step 2: Filter by relevance threshold
+        trends_data = self._filter_by_relevance(trends_data)
+        
+        # Step 3: Deduplicate against recent trends (7 days)
+        trends_data = self._deduplicate_recent(trends_data)
+        
+        # Step 4: Limit to max results
+        trends_data = self._limit_results(trends_data)
+        
+        final_count = trends_data.get("count", 0)
+        print(f"[TRENDS_ENGINE] Pipeline complete: {initial_count} → {final_count}")
+        
+        return trends_data
+    
+    def _get_raw_trends(self, state: AgentState) -> TrendsData:
+        """
+        Fetch raw trends from aggregator with structured error handling.
+        
+        Args:
+            state: Agent state containing region
+            
+        Returns:
+            TrendsData with explicit status
+        """
+        region = state.get("region", "united_states")
+        
+        try:
+            # Use multi-source aggregator for better results
+            aggregator_tool = self.tools.get("trends_aggregator")
+            
+            if aggregator_tool:
+                trends_data: TrendsData = aggregator_tool.safe_execute(region=region)  # type: ignore
+                log_tool_usage("processor", "trends_aggregator", success=True)
+                return trends_data
+            else:
+                # Fallback to single source
+                trends_tool = self.tools["google_trends"]
+                trends_data: TrendsData = trends_tool.safe_execute(  # type: ignore
+                    region=region,
+                    include_related=False
+                )
+                log_tool_usage("processor", "google_trends", success=True)
+                return trends_data
+                
+        except Exception as e:
+            log_tool_usage("processor", "trends_aggregator", success=False)
+            
+            # Return explicit failure structure
+            return TrendsData(
+                status="failed",
+                error=str(e),
+                trends=[],
+                count=0,
+                source="unknown"
+            )
+    
+    def _filter_by_relevance(self, trends_data: TrendsData) -> TrendsData:
+        """
+        Filter trends by relevance threshold.
+        
+        Currently uses score-based filtering. In production, this can become:
+        - LLM-based filtering
+        - Semantic ranking
+        - User preference matching
+        
+        Args:
+            trends_data: Raw trends data
+            
+        Returns:
+            New TrendsData with filtered trends (immutable)
+        """
+        threshold = self.RELEVANCE_THRESHOLD
+        
+        trends: List[TrendItem] = trends_data.get("trends", [])  # type: ignore
+        before_count = len(trends)
+        
+        # Filter trends by score threshold (strict - None scores are excluded)
+        filtered: List[TrendItem] = []
+        for trend in trends:
+            score = trend.get("score")
+            if score is not None and score >= threshold:
+                filtered.append(trend)
+        
+        after_count = len(filtered)
+        
+        # Log pipeline step
+        print(f"[TRENDS_ENGINE] filter_relevance: {before_count} → {after_count} (threshold: {threshold})")
+        
+        # Return new dict (immutable pattern)
+        return {
+            **trends_data,
+            "trends": filtered,  # type: ignore
+            "count": after_count
+        }
+    
+    def _deduplicate_recent(self, trends_data: TrendsData) -> TrendsData:
+        """
+        Deduplicate against recent trends (7 days memory).
+        
+        Currently uses a stub. In production, this should:
+        - Query database for trends from last 7 days
+        - Use Redis cache for fast lookups
+        - Implement sliding window deduplication
+        
+        Args:
+            trends_data: Trends data to deduplicate
+            
+        Returns:
+            New TrendsData with deduplicated trends (immutable)
+        """
+        # Load recent topics (stub for now - shows design thinking)
+        recent_topics = self._load_recent_topics()
+        
+        trends: List[TrendItem] = trends_data.get("trends", [])  # type: ignore
+        before_count = len(trends)
+        
+        # Filter out topics seen in last 7 days (with normalization)
+        filtered: List[TrendItem] = [
+            trend for trend in trends
+            if self._normalize_topic(trend.get("topic", "")) not in recent_topics
+        ]
+        
+        after_count = len(filtered)
+        
+        # Log pipeline step
+        print(f"[TRENDS_ENGINE] deduplicate_recent: {before_count} → {after_count} (recent: {len(recent_topics)})")
+        
+        # Return new dict (immutable pattern)
+        return {
+            **trends_data,
+            "trends": filtered,  # type: ignore
+            "count": after_count
+        }
+    
+    def _normalize_topic(self, topic: str) -> str:
+        """
+        Normalize topic string for consistent comparison.
+        
+        Handles:
+        - Case normalization (lowercase)
+        - Whitespace trimming
+        - Special character handling (future)
+        
+        Args:
+            topic: Raw topic string
+            
+        Returns:
+            Normalized topic string
+            
+        Examples:
+            "AI News" → "ai news"
+            "AI-news" → "ai-news"
+            "  AI news  " → "ai news"
+        """
+        return topic.lower().strip()
+    
+    def _load_recent_topics(self) -> Set[str]:
+        """
+        Load topics from last 7 days.
+        
+        Stub implementation - shows architectural thinking.
+        
+        In production, this should:
+        - Query database: SELECT topic FROM trends WHERE created_at > NOW() - INTERVAL 7 DAY
+        - Use Redis cache with TTL
+        - Implement efficient set operations
+        
+        Returns:
+            Set of recent topic strings (lowercase)
+        """
+        # TODO: Implement database/cache lookup
+        # For now, return empty set (no deduplication)
+        return set()
+    
+    def _limit_results(self, trends_data: TrendsData) -> TrendsData:
+        """
+        Limit results to maximum number of trends.
+        
+        Args:
+            trends_data: Trends data to limit
+            
+        Returns:
+            New TrendsData with limited trends (immutable)
+        """
+        max_results = self.MAX_TRENDS
+        
+        trends: List[TrendItem] = trends_data.get("trends", [])  # type: ignore
+        before_count = len(trends)
+        limited: List[TrendItem] = trends[:max_results]
+        after_count = len(limited)
+        
+        # Log pipeline step
+        print(f"[TRENDS_ENGINE] limit_results: {before_count} → {after_count} (max: {max_results})")
+        
+        # Return new dict (immutable pattern)
+        return {
+            **trends_data,
+            "trends": limited,  # type: ignore
+            "count": after_count
+        }
+    
+    # ========================================
+    # END TRENDS ENGINE
+    # ========================================
+    
     def execute(self, state: AgentState) -> AgentState:
         """
         Process the task according to plan with tool integration.
@@ -104,50 +342,38 @@ class ProcessorAgent(BaseAgent):
         plan: AgentPlan,
         execution_history: List[str]
     ) -> AgentState:
-        """Process request for Google Trends data"""
+        """
+        Process request for trends data using the trends engine.
+        
+        Uses the fetch_trends() orchestrator for clean, structured processing.
+        """
         user_input = state.get("input", "")
         
         try:
-            # Extract region from input or use default
-            region = state.get("region", "united_states")  # Changed default
+            # Use the trends engine orchestrator
+            trends_data = self.fetch_trends(state)
             
-            # Use multi-source aggregator for better results
-            aggregator_tool = self.tools.get("trends_aggregator")
+            # Check if fetch was successful
+            if trends_data.get("status") == "failed":
+                raise Exception(trends_data.get("error", "Unknown error"))
             
-            if aggregator_tool:
-                # Use aggregator (combines Google Trends + DuckDuckGo)
-                trends_data: TrendsData = aggregator_tool.safe_execute(region=region)  # type: ignore
-                log_tool_usage("processor", "trends_aggregator", success=True)
-                
-                # Extract tools dynamically from aggregator response
-                # Resilient to schema changes: try raw_sources, then sources, then empty list
-                sources = trends_data.get("raw_sources") or trends_data.get("sources") or []  # type: ignore
-                tools_used: List[str] = [
-                    source.get("source")  # type: ignore
-                    for source in sources
-                    if source.get("status") == "success" and source.get("source")  # type: ignore
-                ]
-                
-                # Fallback if no successful sources found
-                if not tools_used:
-                    tools_used = ["trends_aggregator"]
-                
-                # Format data source string
-                data_source = ", ".join(tools_used) if tools_used else "Multi-source aggregator"
-                
-                # Format aggregated result
-                result_msg = f"Fetched {trends_data['count']} trending topics from {trends_data['sources_successful']} sources"
-            else:
-                # Fallback to single source
-                trends_tool = self.tools["google_trends"]
-                trends_data: TrendsData = trends_tool.safe_execute(  # type: ignore
-                    region=region,
-                    include_related=False  # Faster, avoid rate limits
-                )
-                log_tool_usage("processor", "google_trends", success=True)
-                tools_used: List[str] = ["google_trends"]
-                data_source: str = "Google Trends"
-                result_msg: str = f"Fetched {trends_data.get('count', 0)} trending topics"
+            # Extract tools used dynamically
+            sources = trends_data.get("raw_sources") or trends_data.get("sources") or []  # type: ignore
+            tools_used: List[str] = [
+                source.get("source")  # type: ignore
+                for source in sources
+                if source.get("status") == "success" and source.get("source")  # type: ignore
+            ]
+            
+            # Fallback if no successful sources found
+            if not tools_used:
+                tools_used = ["trends_aggregator"] if "trends_aggregator" in self.tools else ["google_trends"]
+            
+            # Format data source string
+            data_source = ", ".join(tools_used) if tools_used else "Multi-source aggregator"
+            
+            # Format result message
+            result_msg = f"Fetched {trends_data['count']} trending topics (filtered, deduplicated, limited to {self.MAX_TRENDS})"
             
             # Format output
             metadata: Metadata = {
@@ -167,12 +393,12 @@ class ProcessorAgent(BaseAgent):
             confidence = 0.95  # High confidence for successful API call
             
         except Exception as e:
-            log_tool_usage("processor", "google_trends", success=False)
+            log_tool_usage("processor", "trends_engine", success=False)
             
             # Log detailed error for debugging
             import traceback
             error_details = traceback.format_exc()
-            print(f"\n[ERROR] Trends API failed:")
+            print(f"\n[ERROR] Trends Engine failed:")
             print(f"  Error: {str(e)}")
             print(f"  Details: {error_details}\n")
             
