@@ -39,16 +39,20 @@ class CoordinatorAgent(BaseAgent):
         retry_count = state.get("retry_count", 0)
         execution_history = state.get("execution_history", [])
         
+        # Detect intent
+        intent = self._detect_intent(user_input)
+        
         # Analyze complexity and determine strategy
         complexity = self._analyze_complexity(user_input)
         
         # COORDINATOR DECIDES NEXT AGENT (true autonomy)
-        next_agent = self._decide_next_agent(complexity, retry_count)
+        next_agent = self._decide_next_agent(complexity, retry_count, intent)
         
         # Generic planning logic with routing
         plan: AgentPlan = {
             "task": user_input,
             "complexity": complexity,
+            "intent": intent,
             "steps": [
                 "Analyze request",
                 "Execute processing",
@@ -57,7 +61,7 @@ class CoordinatorAgent(BaseAgent):
             "requires_tools": ["data_transformer"] if complexity > 0.5 else []
         }
         
-        log_routing_decision("coordinator", next_agent, f"complexity={complexity:.2f}")
+        log_routing_decision("coordinator", next_agent, f"complexity={complexity:.2f}, intent={intent}")
         log_agent_step("coordinator", {"plan": plan}, "complete")
         
         # Update execution history
@@ -85,12 +89,43 @@ class CoordinatorAgent(BaseAgent):
         else:
             return 0.9
     
-    def _decide_next_agent(self, complexity: float, retry_count: int) -> str:
+    def _detect_intent(self, user_input: str) -> str:
+        """
+        Detect user intent from input.
+        
+        Args:
+            user_input: User's input text
+            
+        Returns:
+            Intent string (e.g., 'trends', 'transform', 'generic')
+        """
+        input_lower = user_input.lower()
+        
+        # Check for trends-related keywords
+        trends_keywords = ['trend', 'trending', 'popular', 'viral', 'google trends']
+        if any(keyword in input_lower for keyword in trends_keywords):
+            return 'trends'
+        
+        return 'generic'
+    
+    def _decide_next_agent(self, complexity: float, retry_count: int, intent: str = "generic") -> str:
         """
         Coordinator decides which agent to route to.
         
         This is TRUE autonomy - coordinator controls the graph flow.
+        
+        Args:
+            complexity: Task complexity (0.0 to 1.0)
+            retry_count: Number of retries so far
+            intent: Detected intent (trends, generic, etc.)
+            
+        Returns:
+            Next agent name
         """
+        # Route trends requests to dedicated fetch_trends node
+        if intent == "trends":
+            return "fetch_trends"
+        
         # For very simple tasks, could skip processor (future enhancement)
         if complexity < 0.2:
             return "processor"  # Could be "validator" for simple tasks

@@ -98,6 +98,10 @@ class AgentState(TypedDict, total=False):
     validation_score: float
     issues: List[str]
     
+    # Trends node outputs
+    trends: List[TrendItem]
+    trends_metadata: Metadata
+    
     # Final output
     final_output: ProcessedOutput
     
@@ -109,6 +113,9 @@ class AgentState(TypedDict, total=False):
     
     # Observability
     execution_history: List[str]
+    
+    # Error handling
+    error: str
 
 
 class ToolExecutionState(TypedDict, total=False):

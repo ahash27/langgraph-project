@@ -4,6 +4,7 @@ from langgraph.graph import StateGraph, END
 from app.agents.coordinator_agent import CoordinatorAgent
 from app.agents.processor_agent import ProcessorAgent
 from app.agents.validator_agent import ValidatorAgent
+from app.nodes.fetch_trends_node import FetchTrendsNode
 from app.utils.logger import log_routing_decision
 from app.graphs.state_schema import AgentState
 
@@ -34,10 +35,19 @@ def route_after_coordinator(state: AgentState) -> str:
     """
     Dynamic routing after coordinator.
     
-    COORDINATOR DECIDES - reads from plan's next_agent field.
-    This is TRUE agent autonomy.
+    Routes to:
+    - fetch_trends: if intent is trends-related
+    - processor: for generic processing
+    - validator: for simple validation-only tasks
+    - end: if no processing needed
     """
     plan = state.get("plan", {})
+    
+    # Check intent for trends
+    intent = plan.get("intent", "")
+    if intent == "trends":
+        log_routing_decision("coordinator", "fetch_trends", "trends intent detected")
+        return "fetch_trends"
     
     # Coordinator decides next agent (stored in plan)
     next_agent = plan.get("next_agent", "processor")
@@ -51,17 +61,19 @@ def build_multi_agent_graph():
     
     Flow: 
     - Coordinator → [decides next agent]
-    - Processor → Validator
+    - fetch_trends (NEW) → Validator (for trends requests)
+    - Processor → Validator (for generic requests)
     - Validator → Processor (if validation fails, retry loop)
     - Validator → END (if validation passes or max retries)
     
     Returns:
         Compiled LangGraph workflow with dynamic routing
     """
-    # Initialize agents
+    # Initialize agents and nodes
     coordinator = CoordinatorAgent()
     processor = ProcessorAgent()
     validator = ValidatorAgent()
+    fetch_trends = FetchTrendsNode()
     
     # Build graph
     builder = StateGraph(dict)
@@ -70,6 +82,7 @@ def build_multi_agent_graph():
     builder.add_node("coordinator", coordinator)
     builder.add_node("processor", processor)
     builder.add_node("validator", validator)
+    builder.add_node("fetch_trends", fetch_trends)
     
     # Define workflow with conditional routing
     builder.set_entry_point("coordinator")
@@ -79,11 +92,15 @@ def build_multi_agent_graph():
         "coordinator",
         route_after_coordinator,
         {
+            "fetch_trends": "fetch_trends",  # NEW: dedicated trends node
             "processor": "processor",
             "validator": "validator",  # Could skip processor for simple tasks
             "end": END
         }
     )
+    
+    # fetch_trends → Validator (always)
+    builder.add_edge("fetch_trends", "validator")
     
     # Processor → Validator (always)
     builder.add_edge("processor", "validator")
