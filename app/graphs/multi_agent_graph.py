@@ -69,11 +69,11 @@ def build_multi_agent_graph():
     Returns:
         Compiled LangGraph workflow with dynamic routing
     """
-    # Initialize agents and nodes
+    # Initialize agents and nodes with dependency injection
     coordinator = CoordinatorAgent()
     processor = ProcessorAgent()
     validator = ValidatorAgent()
-    fetch_trends = FetchTrendsNode()
+    fetch_trends = FetchTrendsNode(processor)  # Inject processor dependency
     
     # Build graph
     builder = StateGraph(dict)

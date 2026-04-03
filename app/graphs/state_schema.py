@@ -114,8 +114,8 @@ class AgentState(TypedDict, total=False):
     # Observability
     execution_history: List[str]
     
-    # Error handling
-    error: str
+    # Error handling (structured)
+    error: Dict[str, JSONValue]
 
 
 class ToolExecutionState(TypedDict, total=False):

@@ -93,6 +93,13 @@ class CoordinatorAgent(BaseAgent):
         """
         Detect user intent from input.
         
+        NOTE: This is a simple keyword-based approach for MVP.
+        In production, this should be:
+        - Moved to a dedicated intent classifier
+        - Use LLM for semantic understanding
+        - Support multi-intent detection
+        - Maintain intent history for context
+        
         Args:
             user_input: User's input text
             
