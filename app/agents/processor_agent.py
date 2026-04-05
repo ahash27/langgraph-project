@@ -2,16 +2,15 @@
 
 from typing import List
 from app.agents.base_agent import BaseAgent
-from app.graphs.state_schema import AgentPlan, AgentState, ProcessedOutput
-from app.tools.tool_registry import ToolRegistry
-from app.utils.logger import log_agent_step, log_tool_usage
 from app.graphs.state_schema import (
-    AgentState,
     AgentPlan,
+    AgentState,
+    Metadata,
     ProcessedOutput,
     TrendsData,
-    Metadata
 )
+from app.tools.tool_registry import ToolRegistry
+from app.utils.logger import log_agent_step, log_tool_usage
 
 
 class ProcessorAgent(BaseAgent):
@@ -93,7 +92,9 @@ class ProcessorAgent(BaseAgent):
         intent = self._detect_intent(user_input, plan)
         
         # Handle trends intent
-        if intent == 'trends' and "google_trends" in self.tools:
+        if intent == "trends" and (
+            "google_trends" in self.tools or "trends_aggregator" in self.tools
+        ):
             return self._process_trends_request(state, plan, execution_history)
         
         # Default processing with data transformation
@@ -197,9 +198,9 @@ class ProcessorAgent(BaseAgent):
             confidence = 0.3  # Low confidence on error
         
         log_agent_step("processor", {"confidence": confidence, "intent": "trends"}, "complete")
-        
-        execution_history.append("processor")
-        
+
+        hist = [*execution_history, "processor"]
+
         return {
             **state,
             "processed_output": processed_output,
@@ -207,174 +208,54 @@ class ProcessorAgent(BaseAgent):
             "next_agent": "validator",
             "processor_status": "completed",
             "current_agent": "processor",
-            "execution_history": execution_history
+            "execution_history": hist,
         }
-    
+
     def _process_generic_request(
         self,
         state: AgentState,
         plan: AgentPlan,
-        execution_history: List[str]
+        execution_history: List[str],
     ) -> AgentState:
         """Process generic request with data transformation"""
         user_input = state.get("input", "")
-<<<<<<< HEAD
-=======
-        execution_history = [*state.get("execution_history", [])]
-        
-        # Detect intent
-        intent = self._detect_intent(user_input, plan)
-        
-        # Handle trends intent
-        if intent == 'trends' and "google_trends" in self.tools:
-            return self._process_trends_request(state, plan, execution_history)
-        
-        # Default processing with data transformation
-        return self._process_generic_request(state, plan, execution_history)
-    
-    def _process_trends_request(
-        self,
-        state: AgentState,
-        plan: AgentPlan,
-        execution_history: List[str]
-    ) -> AgentState:
-        """Process request for Google Trends data"""
-        user_input = state.get("input", "")
-        
-        try:
-            # Extract region from input or use default
-            region = state.get("region", "united_states")  # Changed default
-            
-            # Use multi-source aggregator for better results
-            aggregator_tool = self.tools.get("trends_aggregator")
-            
-            if aggregator_tool:
-                # Use aggregator (combines Google Trends + DuckDuckGo)
-                trends_data = aggregator_tool.safe_execute(region=region)
-                log_tool_usage("processor", "trends_aggregator", success=True)
-                
-                # Format aggregated result
-                result_msg = f"Fetched {trends_data['count']} trending topics from {trends_data['sources_successful']} sources"
-            else:
-                # Fallback to single source
-                trends_tool = self.tools["google_trends"]
-                trends_data = trends_tool.safe_execute(
-                    region=region,
-                    include_related=False  # Faster, avoid rate limits
-                )
-                log_tool_usage("processor", "google_trends", success=True)
-                result_msg = f"Fetched {trends_data.get('count', 0)} trending topics"
-            
-            # Format output
-            processed_output: ProcessedOutput = {
-                "original_input": user_input,
-                "intent": "trends",
-                "result": result_msg,
-                "trends_data": trends_data,
-                "metadata": {
-                    "status": "success",
-                    "tools_used": ["google_trends"],
-                    "data_source": "Google Trends"
-                }
-            }
-            
-            confidence = 0.95  # High confidence for successful API call
-            
-        except Exception as e:
-            log_tool_usage("processor", "google_trends", success=False)
-            
-            # Log detailed error for debugging
-            import traceback
-            error_details = traceback.format_exc()
-            print(f"\n[ERROR] Google Trends API failed:")
-            print(f"  Error: {str(e)}")
-            print(f"  Details: {error_details}\n")
-            
-            processed_output = {
-                "original_input": user_input,
-                "intent": "trends",
-                "result": f"Failed to fetch trends: {str(e)}",
-                "error": str(e),
-                "error_details": error_details,
-                "metadata": {
-                    "status": "error",
-                    "tools_used": ["google_trends"]
-                }
-            }
-            
-            confidence = 0.3  # Low confidence on error
-        
-        log_agent_step("processor", {"confidence": confidence, "intent": "trends"}, "complete")
-        
-        return {
-            **state,
-            "processed_output": processed_output,
-            "processor_confidence": confidence,
-            "next_agent": "validator",
-            "processor_status": "completed",
-            "current_agent": "processor",
-            "execution_history": [*execution_history, "processor"]
-        }
-    
-    def _process_generic_request(
-        self,
-        state: AgentState,
-        plan: AgentPlan,
-        execution_history: List[str]
-    ) -> AgentState:
-        """Process generic request with data transformation"""
-        user_input = state.get("input", "")
->>>>>>> main
-        
-        # Use tools if specified in plan
+
         transformed_data = user_input
-        tools_used = []
-        
+        tools_used: List[str] = []
+
         if "data_transformer" in plan.get("requires_tools", []):
             if "data_transformer" in self.tools:
                 try:
                     transformed_data = self.tools["data_transformer"].execute(
-                        user_input, 
-                        transform_type="normalize"
+                        user_input,
+                        transform_type="normalize",
                     )
                     tools_used.append("data_transformer")
                     log_tool_usage("processor", "data_transformer", success=True)
-                except Exception as e:
+                except Exception:
                     log_tool_usage("processor", "data_transformer", success=False)
-        
-        # Calculate confidence based on complexity
-<<<<<<< HEAD
+
         complexity: float = plan.get("complexity", 0.5)
         confidence: float = 1.0 - (complexity * 0.3)
-        
-        # Generic processing logic
+
         metadata: Metadata = {
             "steps_completed": len(plan.get("steps", [])),
             "status": "success",
-            "tools_used": tools_used
+            "tools_used": tools_used,
         }
-        
-=======
-        complexity = plan.get("complexity", 0.5)
-        confidence = 1.0 - (complexity * 0.3)
-        
-        # Generic processing logic
->>>>>>> main
+
         processed_output: ProcessedOutput = {
             "original_input": user_input,
             "transformed_input": transformed_data,
             "plan_executed": plan.get("task", ""),
             "result": f"Processed: {transformed_data}",
-            "metadata": metadata
+            "metadata": metadata,
         }
-        
+
         log_agent_step("processor", {"confidence": confidence}, "complete")
-        
-<<<<<<< HEAD
-        execution_history.append("processor")
-        
-=======
->>>>>>> main
+
+        hist = [*execution_history, "processor"]
+
         return {
             **state,
             "processed_output": processed_output,
@@ -382,5 +263,5 @@ class ProcessorAgent(BaseAgent):
             "next_agent": "validator",
             "processor_status": "completed",
             "current_agent": "processor",
-            "execution_history": [*execution_history, "processor"]
+            "execution_history": hist,
         }

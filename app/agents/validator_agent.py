@@ -1,11 +1,16 @@
 """Validator agent - validates and quality checks output"""
 
 from typing import List
+
 from app.agents.base_agent import BaseAgent
-from app.graphs.state_schema import AgentState, FinalOutput, ProcessedOutput, ValidationResult
+from app.graphs.state_schema import (
+    AgentState,
+    FinalOutput,
+    ProcessedOutput,
+    ValidationResult,
+)
 from app.tools.tool_registry import ToolRegistry
-from app.utils.logger import log_agent_step, log_tool_usage
-from app.graphs.state_schema import AgentState, ProcessedOutput, ValidationResult, Metadata, log_routing_decision
+from app.utils.logger import log_agent_step, log_routing_decision, log_tool_usage
 
 
 class ValidatorAgent(BaseAgent):
@@ -144,16 +149,10 @@ class ValidatorAgent(BaseAgent):
         return issues
     
     def _calculate_quality_score(
-<<<<<<< HEAD
-        self, 
-        processed: ProcessedOutput, 
-        confidence: float, 
-=======
         self,
         processed: ProcessedOutput,
         confidence: float,
->>>>>>> main
-        issues: List[str]
+        issues: List[str],
     ) -> float:
         """Calculate overall quality score"""
         base_score = 1.0

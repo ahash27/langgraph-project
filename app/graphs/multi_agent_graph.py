@@ -6,6 +6,7 @@ from app.agents.coordinator_agent import CoordinatorAgent
 from app.agents.processor_agent import ProcessorAgent
 from app.agents.validator_agent import ValidatorAgent
 from app.graphs.state_schema import AgentState
+from app.nodes.generate_posts_node import generate_posts
 from app.utils.logger import log_routing_decision
 
 
@@ -45,9 +46,9 @@ def build_multi_agent_graph():
     """
     Build a multi-agent workflow graph with conditional routing.
     
-    Flow: 
+    Flow:
     - Coordinator → [decides next agent]
-    - Processor → Validator
+    - Processor → generate_posts → Validator
     - Validator → Processor (if validation fails, retry loop)
     - Validator → END (if validation passes or max retries)
     
@@ -65,6 +66,7 @@ def build_multi_agent_graph():
     # Add agent nodes
     builder.add_node("coordinator", coordinator)
     builder.add_node("processor", processor)
+    builder.add_node("generate_posts", generate_posts)
     builder.add_node("validator", validator)
     
     # Define workflow with conditional routing
@@ -81,8 +83,9 @@ def build_multi_agent_graph():
         }
     )
     
-    # Processor → Validator (always)
-    builder.add_edge("processor", "validator")
+    # Processor → generate_posts → Validator
+    builder.add_edge("processor", "generate_posts")
+    builder.add_edge("generate_posts", "validator")
     
     # Validator → Processor (retry loop) OR END
     builder.add_conditional_edges(
