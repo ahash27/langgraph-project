@@ -25,6 +25,9 @@ wheels/
 .env
 .venv
 
+# OAuth token store (local dev; never commit)
+data/linkedin_tokens.json
+
 # IDE
 .vscode/
 .idea/

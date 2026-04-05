@@ -7,6 +7,7 @@ from app.services.llm import active_model_name, llm_backend_label
 from api.routes.auth import router as auth_router
 from api.routes.linkedin import router as linkedin_router
 from api.routes.workflows import router as workflows_router
+from api.routes.auth import router as auth_router
 
 app = FastAPI(
     title="LangGraph API",
