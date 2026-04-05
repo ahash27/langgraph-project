@@ -1,4 +1,4 @@
-"""LinkedIn OAuth endpoints (dev-friendly)."""
+"""LinkedIn OAuth (authorization code flow)."""
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -11,7 +11,6 @@ from app.services.linkedin_oauth import (
     save_tokens,
     validate_oauth_state,
 )
-
 
 router = APIRouter(tags=["auth"])
 
@@ -35,17 +34,14 @@ async def linkedin_callback(
             status_code=400,
             content={"ok": False, "error": error, "error_description": error_description},
         )
-
     if not validate_oauth_state(state):
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state.")
-
     if not code:
         raise HTTPException(status_code=400, detail="Missing `code` from LinkedIn.")
 
     try:
         tokens = exchange_code_for_tokens(code)
         save_tokens(tokens)
-        # Verify refresh-before-use behavior (will refresh only if needed).
         _ = ensure_fresh_access_token()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -53,5 +49,5 @@ async def linkedin_callback(
     return {
         "ok": True,
         "message": "LinkedIn authorization successful. Tokens stored.",
+        "member_urn_set": bool(tokens.get("member_urn")),
     }
-

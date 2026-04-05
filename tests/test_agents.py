@@ -18,7 +18,8 @@ def test_coordinator_agent():
     assert "next_agent" in result
     assert result["coordinator_status"] == "completed"
     assert result["schema_version"] == SCHEMA_VERSION
-    assert all("name" in step for step in result["plan"]["steps"])
+    assert isinstance(result["plan"]["steps"], list)
+    assert all(isinstance(s, str) and s for s in result["plan"]["steps"])
 
 
 def test_processor_agent():

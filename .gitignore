@@ -46,3 +46,7 @@ Thumbs.db
 # PR/Documentation temp files
 PR_DESCRIPTION.md
 CREATE_PR_INSTRUCTIONS.md
+
+# LinkedIn rate limiter state (local)
+data/linkedin_rate_limit_state.json
+data/linkedin_tokens.json

@@ -1,9 +1,8 @@
 """Coordinator agent - orchestrates workflow and delegates tasks"""
 
 from app.agents.base_agent import BaseAgent
-from app.graphs.state_schema import AgentPlan, AgentState, PlanStep, SCHEMA_VERSION
+from app.graphs.state_schema import AgentPlan, AgentState, SCHEMA_VERSION
 from app.utils.logger import log_agent_step, log_routing_decision
-from app.graphs.state_schema import AgentState, AgentPlan
 
 
 class CoordinatorAgent(BaseAgent):
