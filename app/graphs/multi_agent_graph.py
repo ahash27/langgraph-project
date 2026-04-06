@@ -7,29 +7,39 @@ from app.agents.processor_agent import ProcessorAgent
 from app.agents.validator_agent import ValidatorAgent
 from app.graphs.state_schema import AgentState
 from app.nodes.generate_posts_node import generate_posts
+from app.nodes.publish_post_node import publish_post
 from app.utils.logger import log_routing_decision
 
 
 def route_after_validator(state: AgentState) -> str:
     """
     Dynamic routing after validator.
-    
+
     Routes to:
     - processor: if validation failed and retries available
-    - end: if validation passed or max retries reached
+    - publish_post: if validation passed, approved_for_publish, and draft text present
+    - end: otherwise
     """
     is_valid = state.get("is_valid", False)
     retry_count = state.get("retry_count", 0)
     max_retries = state.get("max_retries", 3)
-    
+
     if not is_valid and retry_count < max_retries:
         reason = f"validation failed, retry {retry_count}/{max_retries}"
         log_routing_decision("validator", "processor", reason)
-        return "processor"  # Loop back for retry
-    else:
-        reason = "validation passed" if is_valid else "max retries reached"
-        log_routing_decision("validator", "end", reason)
-        return "end"
+        return "processor"
+
+    approved = bool(state.get("approved_for_publish"))
+    draft = (state.get("publish_draft_text") or "").strip()
+    if is_valid and approved and draft:
+        log_routing_decision("validator", "publish_post", "approved draft, publishing")
+        return "publish_post"
+
+    reason = "validation passed" if is_valid else "max retries reached"
+    if is_valid and approved and not draft:
+        reason = "approved but no publish_draft_text"
+    log_routing_decision("validator", "end", reason)
+    return "end"
 
 
 def route_after_coordinator(state: AgentState) -> str:
@@ -50,7 +60,9 @@ def build_multi_agent_graph():
     - Coordinator → [decides next agent]
     - Processor → generate_posts → Validator
     - Validator → Processor (if validation fails, retry loop)
-    - Validator → END (if validation passes or max retries)
+    - Validator → publish_post (if valid + approved_for_publish + draft text)
+    - Validator → END (otherwise)
+    - publish_post → END
     
     Returns:
         Compiled LangGraph workflow with dynamic routing
@@ -68,7 +80,8 @@ def build_multi_agent_graph():
     builder.add_node("processor", processor)
     builder.add_node("generate_posts", generate_posts)
     builder.add_node("validator", validator)
-    
+    builder.add_node("publish_post", publish_post)
+
     # Define workflow with conditional routing
     builder.set_entry_point("coordinator")
     
@@ -93,8 +106,10 @@ def build_multi_agent_graph():
         route_after_validator,
         {
             "processor": "processor",
-            "end": END
-        }
+            "publish_post": "publish_post",
+            "end": END,
+        },
     )
-    
+    builder.add_edge("publish_post", END)
+
     return builder.compile()
