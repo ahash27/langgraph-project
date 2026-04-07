@@ -5,6 +5,7 @@ from app.agents.coordinator_agent import CoordinatorAgent
 from app.agents.processor_agent import ProcessorAgent
 from app.agents.validator_agent import ValidatorAgent
 from app.nodes.fetch_trends_node import FetchTrendsNode
+from app.nodes.human_approval_node import HumanApprovalNode
 from app.utils.logger import log_routing_decision
 from app.graphs.state_schema import AgentState
 
@@ -61,19 +62,21 @@ def build_multi_agent_graph():
     
     Flow: 
     - Coordinator → [decides next agent]
-    - fetch_trends (NEW) → Validator (for trends requests)
+    - fetch_trends → human_approval (NEW) → Validator (for trends requests)
     - Processor → Validator (for generic requests)
     - Validator → Processor (if validation fails, retry loop)
     - Validator → END (if validation passes or max retries)
+    - human_approval can route back to fetch_trends on reject
     
     Returns:
-        Compiled LangGraph workflow with dynamic routing
+        Compiled LangGraph workflow with dynamic routing and human approval
     """
     # Initialize agents and nodes with dependency injection
     coordinator = CoordinatorAgent()
     processor = ProcessorAgent()
     validator = ValidatorAgent()
     fetch_trends = FetchTrendsNode(processor)  # Inject processor dependency
+    human_approval = HumanApprovalNode()
     
     # Build graph
     builder = StateGraph(dict)
@@ -83,6 +86,7 @@ def build_multi_agent_graph():
     builder.add_node("processor", processor)
     builder.add_node("validator", validator)
     builder.add_node("fetch_trends", fetch_trends)
+    builder.add_node("human_approval", human_approval)
     
     # Define workflow with conditional routing
     builder.set_entry_point("coordinator")
@@ -99,8 +103,12 @@ def build_multi_agent_graph():
         }
     )
     
-    # fetch_trends → Validator (always)
-    builder.add_edge("fetch_trends", "validator")
+    # fetch_trends → human_approval (NEW: human-in-the-loop)
+    builder.add_edge("fetch_trends", "human_approval")
+    
+    # human_approval → validator (after approval/edit)
+    # Note: human_approval can also return Command(goto="fetch_trends") on reject
+    builder.add_edge("human_approval", "validator")
     
     # Processor → Validator (always)
     builder.add_edge("processor", "validator")

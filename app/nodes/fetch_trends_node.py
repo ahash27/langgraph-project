@@ -87,11 +87,21 @@ class FetchTrendsNode:
                 "status": "success"
             }, "complete")
             
+            # Format draft content for human approval
+            draft_lines = ["# Trending Topics\n"]
+            for i, trend in enumerate(trends, 1):
+                topic = trend.get("topic", "Unknown")
+                score = trend.get("score", 0)
+                draft_lines.append(f"{i}. {topic} (score: {score})")
+            
+            draft_content = "\n".join(draft_lines)
+            
             # Return new state (immutable pattern - no mutation)
             return {
                 **state,
                 "trends": trends,
-                "trends_metadata": trends_metadata
+                "trends_metadata": trends_metadata,
+                "draft_content": draft_content
             }
             
         except Exception as e:

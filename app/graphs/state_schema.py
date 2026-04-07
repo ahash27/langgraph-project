@@ -102,6 +102,10 @@ class AgentState(TypedDict, total=False):
     trends: List[TrendItem]
     trends_metadata: Metadata
     
+    # Human approval node outputs
+    draft_content: str
+    approved_content: str
+    
     # Final output
     final_output: ProcessedOutput
     
