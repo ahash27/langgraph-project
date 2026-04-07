@@ -10,7 +10,7 @@ from app.graphs.state_schema import (
     ValidationResult,
 )
 from app.tools.tool_registry import ToolRegistry
-from app.utils.logger import log_agent_step, log_routing_decision, log_tool_usage
+from app.utils.logger import log_agent_step, log_tool_usage, log_routing_decision
 
 
 class ValidatorAgent(BaseAgent):

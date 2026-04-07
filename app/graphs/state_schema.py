@@ -149,6 +149,17 @@ class AgentState(TypedDict, total=False):
     # Observability
     execution_history: List[str]
 
+    # LinkedIn publish (SP-01 delivery): set upstream when ready to go live
+    approved_for_publish: bool
+    publish_draft_text: str
+    linkedin_post_urn: str
+    linkedin_publish_fingerprint: str
+    publish_post_status: str
+    publish_post_error: Optional[str]
+
+    # Error handling (structured)
+    error: Dict[str, JSONValue]
+
 
 class ToolExecutionState(TypedDict, total=False):
     """State for tool execution"""
