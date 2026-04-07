@@ -5,6 +5,7 @@ from app.agents.coordinator_agent import CoordinatorAgent
 from app.agents.processor_agent import ProcessorAgent
 from app.agents.validator_agent import ValidatorAgent
 from app.graphs.agent_registry import AgentRegistry
+from app.graphs.state_schema import SCHEMA_VERSION
 
 
 def test_coordinator_agent():
@@ -16,6 +17,9 @@ def test_coordinator_agent():
     assert "plan" in result
     assert "next_agent" in result
     assert result["coordinator_status"] == "completed"
+    assert result["schema_version"] == SCHEMA_VERSION
+    assert isinstance(result["plan"]["steps"], list)
+    assert all(isinstance(s, str) and s for s in result["plan"]["steps"])
 
 
 def test_processor_agent():
@@ -42,6 +46,34 @@ def test_validator_agent():
     assert "validation_result" in result
     assert "final_output" in result
     assert result["validator_status"] == "completed"
+
+
+def test_validator_replaces_previous_issues():
+    """Validator should keep issues only inside validation_result."""
+    agent = ValidatorAgent()
+    state = {
+        "processed_output": {
+            "result": "Fresh result",
+            "metadata": {"status": "success"},
+        },
+        "processor_confidence": 1.0,
+    }
+
+    result = agent.execute(state)
+
+    assert "issues" not in result
+    assert result["validation_result"]["issues"] == []
+
+
+def test_agents_do_not_mutate_input_history():
+    """Agents should return updated history without mutating input state."""
+    agent = CoordinatorAgent()
+    state = {"input": "Test task", "execution_history": ["existing"]}
+
+    result = agent.execute(state)
+
+    assert state["execution_history"] == ["existing"]
+    assert result["execution_history"] == ["existing", "coordinator"]
 
 
 def test_agent_registry():

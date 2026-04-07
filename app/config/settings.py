@@ -5,9 +5,16 @@ load_dotenv()
 
 # OpenAI Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0.7"))
 OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "2000"))
+
+# OpenRouter (OpenAI-compatible base URL + key)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
+OPENROUTER_HTTP_REFERER = os.getenv("OPENROUTER_HTTP_REFERER", "http://localhost:8000")
+OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "langgraph-project")
 
 # LangSmith Tracing
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
@@ -28,6 +35,11 @@ API_RELOAD = os.getenv("API_RELOAD", "true").lower() == "true"
 TWITTER_API_KEY = os.getenv("TWITTER_API_KEY")
 TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET")
 LINKEDIN_CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID")
+LINKEDIN_CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET")
+
+# LinkedIn publish throttling (Phase 4; use with UGC/post APIs only)
+LINKEDIN_MIN_POST_INTERVAL_SECONDS = int(os.getenv("LINKEDIN_MIN_POST_INTERVAL_SECONDS", "120"))
+LINKEDIN_MAX_POSTS_PER_DAY = int(os.getenv("LINKEDIN_MAX_POSTS_PER_DAY", "50"))
 
 # Database
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./langgraph.db")
@@ -40,8 +52,10 @@ RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
 
 def validate_config():
     """Validate required configuration"""
-    if not OPENAI_API_KEY:
-        raise ValueError("OPENAI_API_KEY is required")
+    _has_openai = bool(OPENAI_API_KEY and str(OPENAI_API_KEY).strip())
+    _has_or = bool(OPENROUTER_API_KEY and str(OPENROUTER_API_KEY).strip())
+    if not _has_openai and not _has_or:
+        raise ValueError("Set OPENROUTER_API_KEY or OPENAI_API_KEY")
     
     if ENVIRONMENT not in ["development", "staging", "production"]:
         raise ValueError(f"Invalid ENVIRONMENT: {ENVIRONMENT}")

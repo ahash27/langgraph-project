@@ -52,12 +52,12 @@ def main():
         # Show routing decisions
         print(f"\n🎯 Routing Decisions:")
         plan = result.get('plan', {})
-        print(f"  - Coordinator decided: {plan.get('next_agent', 'N/A')} (complexity: {plan.get('complexity', 0):.2f})")
+        print(f"  - Coordinator decided: {result.get('next_agent', 'N/A')} (complexity: {plan.get('complexity', 0):.2f})")
         print(f"  - Retry count: {result.get('retry_count', 0)}")
         print(f"  - Final status: {result.get('workflow_status', 'N/A')}")
         
         # Show issues if any
-        issues = result.get('issues', [])
+        issues = result.get('validation_result', {}).get('issues', [])
         if issues:
             print(f"\n⚠️  Issues Detected: {', '.join(issues)}")
         else:

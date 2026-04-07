@@ -43,3 +43,7 @@ Thumbs.db
 # PR/Documentation temp files
 PR_DESCRIPTION.md
 CREATE_PR_INSTRUCTIONS.md
+
+# LinkedIn local state (never commit)
+data/linkedin_tokens.json
+data/linkedin_rate_limit_state.json

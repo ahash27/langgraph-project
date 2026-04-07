@@ -16,6 +16,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --cov=app --cov-report=term-missing"
+markers = [
+    "sp01: SP-01 post generation stack (config, graph, rate limits)",
+]
 
 [tool.mypy]
 python_version = "3.11"

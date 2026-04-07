@@ -1,8 +1,8 @@
 """Coordinator agent - orchestrates workflow and delegates tasks"""
 
 from app.agents.base_agent import BaseAgent
+from app.graphs.state_schema import AgentPlan, AgentState, SCHEMA_VERSION
 from app.utils.logger import log_agent_step, log_routing_decision
-from app.graphs.state_schema import AgentState, AgentPlan
 
 
 class CoordinatorAgent(BaseAgent):
@@ -37,7 +37,7 @@ class CoordinatorAgent(BaseAgent):
         
         user_input = state.get("input", "")
         retry_count = state.get("retry_count", 0)
-        execution_history = state.get("execution_history", [])
+        execution_history = [*state.get("execution_history", []), "coordinator"]
         
         # Detect intent
         intent = self._detect_intent(user_input)
@@ -64,11 +64,9 @@ class CoordinatorAgent(BaseAgent):
         log_routing_decision("coordinator", next_agent, f"complexity={complexity:.2f}, intent={intent}")
         log_agent_step("coordinator", {"plan": plan}, "complete")
         
-        # Update execution history
-        execution_history.append("coordinator")
-        
         return {
             **state,
+            "schema_version": SCHEMA_VERSION,
             "plan": plan,
             "next_agent": next_agent,
             "coordinator_status": "completed",

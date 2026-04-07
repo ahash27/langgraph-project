@@ -1,10 +1,16 @@
 """Validator agent - validates and quality checks output"""
 
 from typing import List
+
 from app.agents.base_agent import BaseAgent
+from app.graphs.state_schema import (
+    AgentState,
+    FinalOutput,
+    ProcessedOutput,
+    ValidationResult,
+)
 from app.tools.tool_registry import ToolRegistry
-from app.utils.logger import log_agent_step, log_tool_usage
-from app.graphs.state_schema import AgentState, ProcessedOutput, ValidationResult, Metadata, log_routing_decision
+from app.utils.logger import log_agent_step, log_tool_usage, log_routing_decision
 
 
 class ValidatorAgent(BaseAgent):
@@ -50,7 +56,7 @@ class ValidatorAgent(BaseAgent):
         confidence = state.get("processor_confidence", 1.0)
         retry_count = state.get("retry_count", 0)
         max_retries = state.get("max_retries", 3)
-        execution_history = state.get("execution_history", [])
+        execution_history = [*state.get("execution_history", [])]
         
         # Run validation checks
         issues = self._validate_output(processed, confidence)
@@ -60,7 +66,7 @@ class ValidatorAgent(BaseAgent):
         # Determine if retry needed
         needs_retry = not is_valid and retry_count < max_retries
         
-        validation_result = {
+        validation_result: ValidationResult = {
             "is_valid": is_valid,
             "quality_score": quality_score,
             "checks_passed": self._get_passed_checks(issues),
@@ -83,7 +89,7 @@ class ValidatorAgent(BaseAgent):
             status = "rejected"
             workflow_status = "completed_with_issues"
         
-        final_output = {
+        final_output: FinalOutput = {
             "result": processed.get("result", ""),
             "validation": validation_result,
             "status": status,
@@ -96,22 +102,18 @@ class ValidatorAgent(BaseAgent):
             "issues": len(issues)
         }, "complete")
         
-        # Update execution history
-        execution_history.append("validator")
-        
         return {
             **state,
             "validation_result": validation_result,
             "is_valid": is_valid,
             "validation_score": quality_score,
-            "issues": issues,
             "final_output": final_output,
             "next_agent": next_agent,
             "validator_status": "completed",
             "retry_count": retry_count + 1 if needs_retry else retry_count,
             "current_agent": "validator",
             "workflow_status": workflow_status,
-            "execution_history": execution_history
+            "execution_history": [*execution_history, "validator"]
         }
     
     def _validate_output(self, processed: ProcessedOutput, confidence: float) -> List[str]:
@@ -147,10 +149,10 @@ class ValidatorAgent(BaseAgent):
         return issues
     
     def _calculate_quality_score(
-        self, 
-        processed: ProcessedOutput, 
-        confidence: float, 
-        issues: List[str]
+        self,
+        processed: ProcessedOutput,
+        confidence: float,
+        issues: List[str],
     ) -> float:
         """Calculate overall quality score"""
         base_score = 1.0

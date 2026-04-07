@@ -1,6 +1,7 @@
 """Base agent class for all agents"""
 
 from abc import ABC, abstractmethod
+
 from app.graphs.state_schema import AgentState
 
 
