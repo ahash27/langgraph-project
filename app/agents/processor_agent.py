@@ -2,15 +2,16 @@
 
 from typing import List, Set
 from app.agents.base_agent import BaseAgent
-from app.graphs.state_schema import (
-    AgentPlan,
-    AgentState,
-    Metadata,
-    ProcessedOutput,
-    TrendsData,
-)
 from app.tools.tool_registry import ToolRegistry
 from app.utils.logger import log_agent_step, log_tool_usage
+from app.graphs.state_schema import (
+    AgentState,
+    AgentPlan,
+    ProcessedOutput,
+    TrendsData,
+    Metadata,
+    TrendItem
+)
 
 
 class ProcessorAgent(BaseAgent):
@@ -329,9 +330,7 @@ class ProcessorAgent(BaseAgent):
         intent = self._detect_intent(user_input, plan)
         
         # Handle trends intent
-        if intent == "trends" and (
-            "google_trends" in self.tools or "trends_aggregator" in self.tools
-        ):
+        if intent == 'trends' and "google_trends" in self.tools:
             return self._process_trends_request(state, plan, execution_history)
         
         # Default processing with data transformation
@@ -423,9 +422,9 @@ class ProcessorAgent(BaseAgent):
             confidence = 0.3  # Low confidence on error
         
         log_agent_step("processor", {"confidence": confidence, "intent": "trends"}, "complete")
-
-        hist = [*execution_history, "processor"]
-
+        
+        execution_history.append("processor")
+        
         return {
             **state,
             "processed_output": processed_output,
@@ -433,54 +432,57 @@ class ProcessorAgent(BaseAgent):
             "next_agent": "validator",
             "processor_status": "completed",
             "current_agent": "processor",
-            "execution_history": hist,
+            "execution_history": execution_history
         }
-
+    
     def _process_generic_request(
         self,
         state: AgentState,
         plan: AgentPlan,
-        execution_history: List[str],
+        execution_history: List[str]
     ) -> AgentState:
         """Process generic request with data transformation"""
         user_input = state.get("input", "")
-
+        
+        # Use tools if specified in plan
         transformed_data = user_input
-        tools_used: List[str] = []
-
+        tools_used = []
+        
         if "data_transformer" in plan.get("requires_tools", []):
             if "data_transformer" in self.tools:
                 try:
                     transformed_data = self.tools["data_transformer"].execute(
-                        user_input,
-                        transform_type="normalize",
+                        user_input, 
+                        transform_type="normalize"
                     )
                     tools_used.append("data_transformer")
                     log_tool_usage("processor", "data_transformer", success=True)
-                except Exception:
+                except Exception as e:
                     log_tool_usage("processor", "data_transformer", success=False)
-
+        
+        # Calculate confidence based on complexity
         complexity: float = plan.get("complexity", 0.5)
         confidence: float = 1.0 - (complexity * 0.3)
-
+        
+        # Generic processing logic
         metadata: Metadata = {
             "steps_completed": len(plan.get("steps", [])),
             "status": "success",
-            "tools_used": tools_used,
+            "tools_used": tools_used
         }
-
+        
         processed_output: ProcessedOutput = {
             "original_input": user_input,
             "transformed_input": transformed_data,
             "plan_executed": plan.get("task", ""),
             "result": f"Processed: {transformed_data}",
-            "metadata": metadata,
+            "metadata": metadata
         }
-
+        
         log_agent_step("processor", {"confidence": confidence}, "complete")
-
-        hist = [*execution_history, "processor"]
-
+        
+        execution_history.append("processor")
+        
         return {
             **state,
             "processed_output": processed_output,
@@ -488,5 +490,5 @@ class ProcessorAgent(BaseAgent):
             "next_agent": "validator",
             "processor_status": "completed",
             "current_agent": "processor",
-            "execution_history": hist,
+            "execution_history": execution_history
         }
