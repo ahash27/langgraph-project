@@ -1,6 +1,6 @@
 """State schema for multi-agent workflows."""
 
-from typing import Annotated, Any, Dict, List, Literal, Optional, TypedDict, Union
+from typing import Annotated, Dict, Any, List, Literal, Optional, TypedDict, Union
 
 # JSON-compatible value types
 JSONValue = Union[str, int, float, bool, None, Dict[str, "JSONValue"], List["JSONValue"]]
@@ -124,6 +124,16 @@ class AgentState(TypedDict, total=False):
     is_valid: bool
     validator_status: str
     validation_score: float
+    issues: List[str]
+    
+    # Trends node outputs
+    trends: List[TrendItem]
+    trends_metadata: Metadata
+    
+    # Human approval node outputs
+    draft_content: str
+    approved_content: str
+    
 
     # Final output
     final_output: FinalOutput
@@ -148,6 +158,9 @@ class AgentState(TypedDict, total=False):
 
     # Observability
     execution_history: List[str]
+    
+    # Error handling (structured)
+    error: Dict[str, JSONValue]
 
     # LinkedIn publish (SP-01 delivery): set upstream when ready to go live
     approved_for_publish: bool
