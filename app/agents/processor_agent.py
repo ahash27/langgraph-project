@@ -40,12 +40,12 @@ class ProcessorAgent(BaseAgent):
         self._load_tools()
     
     def _load_tools(self):
-        """Load available tools from registry"""
-        try:
-            for tool_name in ToolRegistry.list_tools():
+        """Load available tools from registry (one failure must not drop the rest)."""
+        for tool_name in ToolRegistry.list_tools():
+            try:
                 self.tools[tool_name] = ToolRegistry.get_tool(tool_name)
-        except Exception:
-            pass  # Tools optional for basic operation
+            except Exception:
+                continue
     
     def _detect_intent(self, user_input: str, plan: AgentPlan) -> str:
         """
@@ -150,8 +150,8 @@ class ProcessorAgent(BaseAgent):
                 return trends_data
                 
         except Exception as e:
-            log_tool_usage("processor", "trends_aggregator", success=False)
-            
+            log_tool_usage("processor", "trends_fetch", success=False)
+
             # Return explicit failure structure
             return TrendsData(
                 status="failed",
@@ -181,11 +181,17 @@ class ProcessorAgent(BaseAgent):
         trends: List[TrendItem] = trends_data.get("trends", [])  # type: ignore
         before_count = len(trends)
         
-        # Filter trends by score threshold (strict - None scores are excluded)
+        # Score threshold; None scores use rank proxy (e.g. Google Trends has no API score)
         filtered: List[TrendItem] = []
         for trend in trends:
             score = trend.get("score")
-            if score is not None and score >= threshold:
+            if score is None:
+                rank = trend.get("rank")
+                if isinstance(rank, int) and rank > 0:
+                    score = 1000.0 / float(rank)
+                else:
+                    score = 0.0
+            if score >= threshold:
                 filtered.append(trend)
         
         after_count = len(filtered)

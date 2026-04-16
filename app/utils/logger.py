@@ -56,8 +56,8 @@ def log_tool_usage(agent_name: str, tool_name: str, success: bool = True):
         success: Whether tool execution succeeded
     """
     timestamp = datetime.now().isoformat()
-    status = "✓" if success else "✗"
-    print(f"[{timestamp}] [{agent_name.upper()}] Tool: {tool_name} {status}")
+    status = "ok" if success else "fail"
+    print(f"[{timestamp}] [{agent_name.upper()}] Tool: {tool_name} [{status}]")
 
 
 def log_workflow_summary(state: AgentState):

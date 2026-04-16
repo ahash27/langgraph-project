@@ -4,7 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.schemas.post_generation import GeneratedPostsBundle, LinkedInPostVariant
+from app.schemas.post_generation import (
+    MIN_POST_BODY_CHARS,
+    GeneratedPostsBundle,
+    LinkedInPostVariant,
+)
 from app.services.linkedin_publish import publish_generated_variant, publish_text_share
 
 
@@ -55,8 +59,11 @@ def test_publish_text_share_ugc_payload(fake_limiter, fake_token_and_urn):
 
 
 def test_publish_generated_variant(fake_limiter, fake_token_and_urn):
+    lead_body = "x" * (MIN_POST_BODY_CHARS - 19) + "Body txt milestone."
+    assert len(lead_body) == MIN_POST_BODY_CHARS
+
     def v():
-        return LinkedInPostVariant(body="Body text.", hashtags=["a", "b", "c"])
+        return LinkedInPostVariant(body=lead_body, hashtags=["a", "b", "c"])
 
     bundle = GeneratedPostsBundle(
         thought_leadership=v(),
@@ -73,4 +80,4 @@ def test_publish_generated_variant(fake_limiter, fake_token_and_urn):
         publish_generated_variant(bundle, "thought_leadership")
 
     call = m.call_args[0][0]
-    assert b"Body text" in call.data
+    assert b"Body txt milestone" in call.data

@@ -126,14 +126,11 @@ class AgentState(TypedDict, total=False):
     validation_score: float
     issues: List[str]
     
-    # Trends node outputs
-    trends: List[TrendItem]
+    # Trends and approval outputs
     trends_metadata: Metadata
-    
-    # Human approval node outputs
     draft_content: str
     approved_content: str
-    
+
 
     # Final output
     final_output: FinalOutput
@@ -155,16 +152,15 @@ class AgentState(TypedDict, total=False):
     generated_posts: Dict[str, JSONValue]
     generate_posts_status: str
     generate_posts_error: Optional[str]
+    generate_posts_context: Dict[str, JSONValue]
 
     # Observability
     execution_history: List[str]
-    
-    # Error handling (structured)
-    error: Dict[str, JSONValue]
 
     # LinkedIn publish (SP-01 delivery): set upstream when ready to go live
     approved_for_publish: bool
     publish_draft_text: str
+    selected_variant: str
     linkedin_post_urn: str
     linkedin_publish_fingerprint: str
     publish_post_status: str

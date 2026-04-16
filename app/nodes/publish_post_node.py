@@ -13,7 +13,6 @@ from app.utils.logger import log_agent_step
 def _fingerprint(text: str) -> str:
     return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
 
-
 def publish_post(state: AgentState) -> AgentState:
     log_agent_step("publish_post", cast(AgentState, state), "start")
     hist = [*state.get("execution_history", []), "publish_post"]
@@ -27,7 +26,8 @@ def publish_post(state: AgentState) -> AgentState:
         out["publish_post_error"] = None
         return cast(AgentState, out)
 
-    text = (state.get("publish_draft_text") or "").strip()
+    approved = (state.get("approved_content") or "").strip()
+    text = approved or (state.get("publish_draft_text") or "").strip()
     if not text:
         out["publish_post_status"] = "skipped_no_draft"
         out["publish_post_error"] = None

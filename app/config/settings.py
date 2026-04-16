@@ -16,6 +16,12 @@ OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
 OPENROUTER_HTTP_REFERER = os.getenv("OPENROUTER_HTTP_REFERER", "http://localhost:8000")
 OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "langgraph-project")
 
+# Gemini direct fallback (Google AI Studio)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+LLM_FALLBACK_ENABLED = os.getenv("LLM_FALLBACK_ENABLED", "true").lower() == "true"
+LLM_PROVIDER_ORDER = os.getenv("LLM_PROVIDER_ORDER", "openrouter,gemini")
+
 # LangSmith Tracing
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true"
