@@ -28,17 +28,18 @@ class DuckDuckGoTrendsTool(BaseTool):
             description="Fetches trending topics using DuckDuckGo search"
         )
         self.ddgs = None
-        self._initialize_client()
-    
-    def _initialize_client(self):
-        """Initialize DuckDuckGo search client"""
+
+    def _ensure_client(self):
+        if self.ddgs is not None:
+            return
         try:
             from duckduckgo_search import DDGS
+
             self.ddgs = DDGS
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "duckduckgo-search is required. Install with: pip install duckduckgo-search"
-            )
+            ) from e
     
     def fetch_trending_topics(
         self, 
@@ -56,7 +57,8 @@ class DuckDuckGoTrendsTool(BaseTool):
             List of trending topics with metadata
         """
         results: List[TrendItem] = []
-        
+        self._ensure_client()
+
         try:
             with self.ddgs() as ddgs:
                 search_results = ddgs.text(keyword, max_results=max_results)

@@ -76,19 +76,18 @@ class GoogleTrendsTool(BaseTool):
             description="Fetches trending topics and related queries from Google Trends"
         )
         self.pytrends = None
-        self._initialize_client()
-    
-    def _initialize_client(self):
-        """Initialize pytrends client lazily"""
+
+    def _ensure_client(self):
+        if self.pytrends is not None:
+            return
         try:
             from pytrends.request import TrendReq
-            # Note: timeout can be set here for production
-            # TrendReq(hl='en-US', tz=360, timeout=(10, 25))
-            self.pytrends = TrendReq(hl='en-US', tz=360)
-        except ImportError:
+
+            self.pytrends = TrendReq(hl="en-US", tz=360)
+        except ImportError as e:
             raise ImportError(
                 "pytrends is required. Install with: pip install pytrends"
-            )
+            ) from e
     
     def _normalize_region(self, region: str) -> Tuple[str, str]:
         """
@@ -125,6 +124,7 @@ class GoogleTrendsTool(BaseTool):
             "Space", "Technology"
         ]
         
+        self._ensure_client()
         try:
             # Use interest_over_time as workaround
             self.pytrends.build_payload(
@@ -158,6 +158,7 @@ class GoogleTrendsTool(BaseTool):
         Returns:
             Tuple of (queries_list, error_message)
         """
+        self._ensure_client()
         try:
             self.pytrends.build_payload([keyword], timeframe='now 7-d')
             related = self.pytrends.related_queries()
@@ -191,6 +192,7 @@ class GoogleTrendsTool(BaseTool):
             Default region changed to 'united_states' due to API limitations.
             Not all regions support trending_searches().
         """
+        self._ensure_client()
         # Normalize region and get ISO code
         normalized_region, geo_code = self._normalize_region(region)
         

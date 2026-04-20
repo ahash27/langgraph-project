@@ -7,19 +7,20 @@ os.environ.setdefault("LANGCHAIN_TRACING_V2", "false")
 
 import pytest
 
-from app.schemas.post_generation import GeneratedPostsBundle, LinkedInPostVariant
+from app.schemas.post_generation import (
+    MIN_POST_BODY_CHARS,
+    GeneratedPostsBundle,
+    LinkedInPostVariant,
+)
 
 
 def _fake_posts_bundle() -> GeneratedPostsBundle:
-    v = lambda: LinkedInPostVariant(body="Stub post for tests.", hashtags=["one", "two", "three"])
+    chunk = "Test paragraph content. "
+    body = (chunk * 30)[:MIN_POST_BODY_CHARS]
     return GeneratedPostsBundle(
-        thought_leadership=v(),
-        question_hook=LinkedInPostVariant(
-            body="Stub question hook.", hashtags=["a", "b", "c", "d"]
-        ),
-        data_insight=LinkedInPostVariant(
-            body="Stub data insight.", hashtags=["x", "y", "z", "w", "q"]
-        ),
+        thought_leadership=LinkedInPostVariant(body=body, hashtags=["one", "two", "three"]),
+        question_hook=LinkedInPostVariant(body=body, hashtags=["a", "b", "c", "d"]),
+        data_insight=LinkedInPostVariant(body=body, hashtags=["x", "y", "z", "w", "q"]),
     )
 
 

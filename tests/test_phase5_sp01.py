@@ -8,20 +8,30 @@ pytestmark = pytest.mark.sp01
 from api.routes.workflows import build_sp01_readiness_payload
 
 from app.nodes.generate_posts_node import _trend_context, generate_posts
-from app.schemas.post_generation import GeneratedPostsBundle, LinkedInPostVariant
+from app.schemas.post_generation import (
+    MIN_POST_BODY_CHARS,
+    GeneratedPostsBundle,
+    LinkedInPostVariant,
+)
 
 
 def _stub_bundle() -> GeneratedPostsBundle:
-    v = LinkedInPostVariant(body="b", hashtags=["a", "b", "c"])
+    v = LinkedInPostVariant(body="b" * MIN_POST_BODY_CHARS, hashtags=["a", "b", "c"])
     return GeneratedPostsBundle(
         thought_leadership=v,
-        question_hook=LinkedInPostVariant(body="q", hashtags=["a", "b", "c", "d"]),
-        data_insight=LinkedInPostVariant(body="d", hashtags=["a", "b", "c", "d", "e"]),
+        question_hook=LinkedInPostVariant(
+            body="q" * MIN_POST_BODY_CHARS, hashtags=["a", "b", "c", "d"]
+        ),
+        data_insight=LinkedInPostVariant(
+            body="d" * MIN_POST_BODY_CHARS, hashtags=["a", "b", "c", "d", "e"]
+        ),
     )
 
 
-def test_trend_context_from_first_trend():
+def test_trend_context_user_request_primary_and_trend_supports():
     state = {
+        "input": "B2B marketing demand generation",
+        "region": "united_states",
         "processed_output": {
             "trends_data": {
                 "trends": [
@@ -32,24 +42,44 @@ def test_trend_context_from_first_trend():
                     }
                 ]
             }
-        }
+        },
     }
-    topic, desc, rq = _trend_context(state)
-    assert topic == "AI"
-    assert desc == "ML boom"
+    topic, desc, rq, ur, ctx = _trend_context(state)
+    assert topic == "B2B marketing demand generation"
+    assert ur == topic
+    assert ctx["trend_topic_picked"] == "AI"
+    assert "ML boom" in desc or "AI" in desc
     assert "gpt" in rq and "llm" in rq
 
 
+def test_trend_context_picks_best_matching_trend():
+    state = {
+        "input": "demand generation and pipeline marketing",
+        "trends": [
+            {"topic": "Cloud migration", "description": "", "related_queries": []},
+            {"topic": "B2B demand gen trends", "description": "pipeline", "related_queries": []},
+        ],
+    }
+    _, _, _, _, ctx = _trend_context(state)
+    assert ctx["trend_topic_picked"] == "B2B demand gen trends"
+    assert ctx["trend_match_score"] >= 1
+
+
 def test_trend_context_fallback_to_plan_and_input():
-    state = {"plan": {"task": "My task"}, "input": "ignored if plan task set"}
-    assert _trend_context(state) == ("My task", "", "")
+    state = {"plan": {"task": "My task"}}
+    t, d, rq, ur, _ = _trend_context(state)
+    assert ur == "My task"
+    assert t == "My task"
     state2 = {"input": "Only input"}
-    assert _trend_context(state2)[0] == "Only input"
+    t2, _, _, ur2, _ = _trend_context(state2)
+    assert ur2 == "Only input"
+    assert t2 == "Only input"
 
 
 def test_trend_context_empty_defaults_topic():
-    state: dict = {}
-    assert _trend_context(state) == ("topic", "", "")
+    t, d, rq, ur, _ = _trend_context({})
+    assert t == "general professional topic"
+    assert ur == t
 
 
 def test_generate_posts_node_success(monkeypatch: pytest.MonkeyPatch):
@@ -59,7 +89,7 @@ def test_generate_posts_node_success(monkeypatch: pytest.MonkeyPatch):
     )
     out = generate_posts({"execution_history": ["processor"]})
     assert out["generate_posts_status"] == "completed"
-    assert out["generated_posts"]["thought_leadership"]["body"] == "b"
+    assert out["generated_posts"]["thought_leadership"]["body"] == "b" * MIN_POST_BODY_CHARS
     assert out["execution_history"][-1] == "generate_posts"
 
 

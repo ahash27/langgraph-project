@@ -11,10 +11,12 @@ from pydantic import ValidationError
 
 from app.config import settings
 from app.schemas.post_generation import (
+    MAX_POST_BODY_CHARS,
+    MIN_POST_BODY_CHARS,
     GeneratedPostsBundle,
     load_post_generation_prompt_config,
 )
-from app.services.llm import get_chat_model
+from app.services.llm import invoke_with_fallback
 
 # Completion budget for three long posts + JSON overhead
 _DEFAULT_MAX_OUTPUT_TOKENS = 4096
@@ -81,7 +83,8 @@ def _retry_instruction(error: BaseException) -> str:
         "thought_leadership, question_hook, data_insight. "
         "Each value must be {\"body\": string, \"hashtags\": array of 3-5 strings}. "
         "Hashtags: single tokens, letters/digits/underscore only, no # in values. "
-        "Each body max 3000 characters."
+        f"Each body: at least {MIN_POST_BODY_CHARS}, at most {MAX_POST_BODY_CHARS} characters; "
+        "aim for roughly 500-1200 when possible."
     )
 
 
@@ -90,9 +93,10 @@ def generate_posts_bundle(
     topic: str,
     description: str = "",
     related_queries: str = "",
+    user_request: str = "",
     config_path: Path | None = None,
     model: Any | None = None,
-    max_retries: int = 1,
+    max_retries: int = 2,
     max_output_tokens: int | None = None,
 ) -> GeneratedPostsBundle:
     """
@@ -101,12 +105,13 @@ def generate_posts_bundle(
     """
     cfg = load_post_generation_prompt_config(config_path)
     mt = max_output_tokens or max(_DEFAULT_MAX_OUTPUT_TOKENS, settings.OPENAI_MAX_TOKENS)
-    llm = model or get_chat_model(max_tokens=mt)
+    llm = model
 
     user_content = cfg.render_user_prompt(
         topic=topic or "",
         description=description or "",
         related_queries=related_queries or "",
+        user_request=user_request or topic or "",
     )
     messages: List[Any] = [
         SystemMessage(content=cfg.brand_voice_system),
@@ -114,8 +119,15 @@ def generate_posts_bundle(
     ]
 
     last_error: BaseException | None = None
+    provider_used = "custom_model" if llm is not None else "auto"
     for attempt in range(max_retries + 1):
-        response = llm.invoke(messages)
+        if llm is not None:
+            response = llm.invoke(messages)
+        else:
+            response, provider_used = invoke_with_fallback(
+                messages,
+                max_tokens=mt,
+            )
         raw = _flatten_message_content(response.content)
 
         try:
@@ -129,5 +141,5 @@ def generate_posts_bundle(
             messages.append(HumanMessage(content=_retry_instruction(e)))
 
     raise RuntimeError(
-        f"Failed to generate valid posts after {max_retries + 1} attempt(s)."
+        f"Failed to generate valid posts after {max_retries + 1} attempt(s). Provider: {provider_used}."
     ) from last_error

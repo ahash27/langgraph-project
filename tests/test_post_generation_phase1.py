@@ -5,17 +5,20 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.post_generation import (
+    MAX_POST_BODY_CHARS,
+    MIN_POST_BODY_CHARS,
     GeneratedPostsBundle,
     LinkedInPostVariant,
-    MAX_POST_BODY_CHARS,
     PostGenerationPromptConfig,
     load_post_generation_prompt_config,
 )
 
+_OK_BODY = "x" * MIN_POST_BODY_CHARS
 
-def _variant(body: str = "Hello.", tags: list[str] | None = None):
+
+def _variant(body: str | None = None, tags: list[str] | None = None):
     tags = tags or ["one", "two", "three"]
-    return {"body": body, "hashtags": tags}
+    return {"body": body or _OK_BODY, "hashtags": tags}
 
 
 def test_generated_posts_bundle_valid():
@@ -30,20 +33,20 @@ def test_generated_posts_bundle_valid():
 
 def test_hashtag_normalization_strips_hash_and_dedupes():
     v = LinkedInPostVariant.model_validate(
-        {"body": "x", "hashtags": ["#A", "a", "B", "c"]}
+        {"body": _OK_BODY, "hashtags": ["#A", "a", "B", "c"]}
     )
     assert v.hashtags == ["A", "B", "c"]
 
 
 def test_hashtag_count_too_few():
     with pytest.raises(ValueError, match="3 and 5"):
-        LinkedInPostVariant.model_validate({"body": "x", "hashtags": ["a", "b"]})
+        LinkedInPostVariant.model_validate({"body": _OK_BODY, "hashtags": ["a", "b"]})
 
 
 def test_hashtag_count_too_many():
     with pytest.raises(ValueError, match="3 and 5"):
         LinkedInPostVariant.model_validate(
-            {"body": "x", "hashtags": ["a", "b", "c", "d", "e", "f"]}
+            {"body": _OK_BODY, "hashtags": ["a", "b", "c", "d", "e", "f"]}
         )
 
 
@@ -54,10 +57,17 @@ def test_body_over_limit():
         )
 
 
+def test_body_under_min():
+    with pytest.raises(ValueError, match="500"):
+        LinkedInPostVariant.model_validate(
+            {"body": "x" * (MIN_POST_BODY_CHARS - 1), "hashtags": ["a", "b", "c"]}
+        )
+
+
 def test_invalid_hashtag_characters():
     with pytest.raises(ValueError, match="Invalid hashtag"):
         LinkedInPostVariant.model_validate(
-            {"body": "ok", "hashtags": ["bad tag", "b", "c"]}
+            {"body": _OK_BODY, "hashtags": ["bad tag", "b", "c"]}
         )
 
 
@@ -65,6 +75,7 @@ def test_load_default_prompt_config():
     cfg = load_post_generation_prompt_config()
     assert "LinkedIn" in cfg.brand_voice_system
     assert "$topic" in cfg.user_prompt_template
+    assert "$user_request" in cfg.user_prompt_template
     out = cfg.render_user_prompt(topic="AI", description="trending", related_queries="q1, q2")
     assert "AI" in out and "trending" in out and "q1" in out
 

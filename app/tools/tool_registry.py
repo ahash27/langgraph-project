@@ -43,11 +43,16 @@ class ToolRegistry:
         # Handle aggregator specially (needs other tools)
         if tool_name == "trends_aggregator":
             if cls._aggregator is None:
-                # Initialize aggregator with trends tools
-                trends_tools = {
-                    "google_trends": cls.get_tool("google_trends"),
-                    "duckduckgo_trends": cls.get_tool("duckduckgo_trends")
-                }
+                trends_tools = {}
+                for key in ("google_trends", "duckduckgo_trends"):
+                    try:
+                        trends_tools[key] = cls.get_tool(key)
+                    except Exception:
+                        continue
+                if not trends_tools:
+                    raise ValueError(
+                        "No trend sources available (install pytrends and duckduckgo-search; see requirements.txt)"
+                    )
                 cls._aggregator = TrendsAggregatorTool(trends_tools)
             return cls._aggregator
         

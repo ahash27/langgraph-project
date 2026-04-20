@@ -10,7 +10,11 @@ from typing import Any, List
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+MIN_POST_BODY_CHARS = 500
 MAX_POST_BODY_CHARS = 3000
+# Suggested band for prompts (not enforced beyond min/max)
+TARGET_POST_BODY_CHARS_MIN = 500
+TARGET_POST_BODY_CHARS_MAX = 1200
 MIN_HASHTAGS = 3
 MAX_HASHTAGS = 5
 _HASHTAG_TOKEN = re.compile(r"^[a-zA-Z0-9_]+$")
@@ -29,10 +33,15 @@ class LinkedInPostVariant(BaseModel):
 
     @field_validator("body")
     @classmethod
-    def body_within_limit(cls, v: str) -> str:
-        if len(v) > MAX_POST_BODY_CHARS:
+    def body_length(cls, v: str) -> str:
+        n = len(v)
+        if n < MIN_POST_BODY_CHARS:
             raise ValueError(
-                f"Post body must be at most {MAX_POST_BODY_CHARS} characters; got {len(v)}."
+                f"Post body must be at least {MIN_POST_BODY_CHARS} characters; got {n}."
+            )
+        if n > MAX_POST_BODY_CHARS:
+            raise ValueError(
+                f"Post body must be at most {MAX_POST_BODY_CHARS} characters; got {n}."
             )
         return v
 
@@ -87,7 +96,7 @@ class PostGenerationPromptConfig(BaseModel):
     )
     user_prompt_template: str = Field(
         ...,
-        description="User message template. Placeholders: $topic, $description, $related_queries.",
+        description="User message template. Placeholders: $user_request, $topic, $description, $related_queries.",
     )
 
     def render_user_prompt(
@@ -96,9 +105,12 @@ class PostGenerationPromptConfig(BaseModel):
         topic: str,
         description: str = "",
         related_queries: str = "",
+        user_request: str = "",
     ) -> str:
         """Fill the user template (safe: only $placeholders, no brace formatting)."""
+        ur = user_request or topic or ""
         return Template(self.user_prompt_template).substitute(
+            user_request=ur,
             topic=topic or "",
             description=description or "",
             related_queries=related_queries or "",
