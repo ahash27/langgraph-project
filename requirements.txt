@@ -7,6 +7,10 @@ fastapi>=0.115.0
 uvicorn>=0.30.0
 pydantic>=2.9.0
 
+# Scheduling
+apscheduler>=3.10.0
+sqlalchemy>=2.0.0
+
 # Trends Data Sources
 pytrends>=4.9.0
 duckduckgo-search>=7.0.0

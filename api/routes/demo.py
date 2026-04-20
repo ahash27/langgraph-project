@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
@@ -11,10 +13,12 @@ from pydantic import BaseModel, Field
 from app.agents.coordinator_agent import CoordinatorAgent
 from app.agents.processor_agent import ProcessorAgent
 from app.agents.validator_agent import ValidatorAgent
+from app.database.models import ScheduledPost, SessionLocal
 from app.graphs.multi_agent_graph import route_after_validator
 from app.nodes.fetch_trends_node import FetchTrendsNode
 from app.nodes.generate_posts_node import generate_posts
 from app.nodes.publish_post_node import publish_post
+from app.services.scheduler import schedule_post
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
@@ -28,6 +32,7 @@ class DemoPublishRequest(BaseModel):
     variant: Literal["thought_leadership", "question_hook", "data_insight"]
     generated_posts: dict[str, Any]
     edited_text: str | None = None
+    scheduled_time: str | None = None  # ISO 8601 datetime string for scheduling
 
 
 @router.post("/generate")
@@ -89,7 +94,7 @@ async def demo_generate(body: DemoGenerateRequest):
 
 @router.post("/publish")
 async def demo_publish(body: DemoPublishRequest):
-    """Run approval->validator->publish_post pipeline and publish one variant."""
+    """Run approval->validator->publish_post pipeline. Supports immediate or scheduled publishing."""
     try:
         generated_posts = body.generated_posts or {}
         selected = generated_posts.get(body.variant) if isinstance(generated_posts, dict) else None
@@ -107,6 +112,50 @@ async def demo_publish(body: DemoPublishRequest):
             )
             approved_text = f"{body_txt}\n\n{tags}".strip()
 
+        # If scheduled_time is provided, schedule the post instead of publishing immediately
+        if body.scheduled_time:
+            try:
+                scheduled_dt = datetime.fromisoformat(body.scheduled_time.replace("Z", "+00:00"))
+                if scheduled_dt.tzinfo is None:
+                    scheduled_dt = scheduled_dt.replace(tzinfo=timezone.utc)
+                else:
+                    scheduled_dt = scheduled_dt.astimezone(timezone.utc)
+                
+                if scheduled_dt <= datetime.now(timezone.utc):
+                    raise ValueError("Scheduled time must be in the future")
+                
+                # Create scheduled post in database
+                db = SessionLocal()
+                try:
+                    post = ScheduledPost(
+                        variant=body.variant,
+                        content=approved_text,
+                        hashtags=json.dumps(selected.get("hashtags", [])),
+                        scheduled_time=scheduled_dt,
+                        status="pending",
+                    )
+                    db.add(post)
+                    db.commit()
+                    db.refresh(post)
+                    
+                    # Schedule with APScheduler
+                    job_id = schedule_post(post.id, scheduled_dt)
+                    
+                    return {
+                        "ok": True,
+                        "scheduled": True,
+                        "post_id": post.id,
+                        "scheduled_time": scheduled_dt.isoformat(),
+                        "used_variant": body.variant,
+                        "message": f"Post scheduled for {scheduled_dt.isoformat()} (job: {job_id})",
+                    }
+                finally:
+                    db.close()
+                    
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+        # Immediate publishing (original flow)
         state: dict[str, Any] = {
             "execution_history": [],
             "approved_for_publish": True,
@@ -141,6 +190,7 @@ async def demo_publish(body: DemoPublishRequest):
 
         return {
             "ok": True,
+            "scheduled": False,
             "used_variant": body.variant,
             "steps": {"approval": "completed", "validator": "completed", "publish": "completed"},
             "linkedin": {"id": state.get("linkedin_post_urn")},

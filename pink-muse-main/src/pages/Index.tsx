@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Calendar } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import PromptInput from "@/components/PromptInput";
 import ProcessStepper, { Step } from "@/components/ProcessStepper";
 import ResultCard from "@/components/ResultCard";
+import DateTimePicker from "@/components/DateTimePicker";
 import { toast } from "sonner";
 
 type AppPhase = "idle" | "processing" | "results";
@@ -67,6 +68,8 @@ const Index = () => {
   const [results, setResults] = useState<PostResult[]>([]);
   const [generatedPosts, setGeneratedPosts] = useState<GeneratedPosts | null>(null);
   const [publishingIndex, setPublishingIndex] = useState<number | null>(null);
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [scheduledTime, setScheduledTime] = useState("");
 
   const handleSubmit = async (text: string) => {
     setPrompt(text);
@@ -115,35 +118,65 @@ const Index = () => {
     const selected = results[index];
     if (!selected) return;
 
+    // Show scheduler option
     setPublishingIndex(index);
+    setShowScheduler(true);
     setResults((prev) =>
       prev.map((r, i) => (i === index ? { ...r, status: "approved" } : { ...r, status: null }))
     );
+  };
+
+  const handlePublish = async (immediate: boolean) => {
+    if (publishingIndex === null || !generatedPosts) return;
+    
+    const selected = results[publishingIndex];
+    if (!selected) return;
+
     try {
+      const payload: any = {
+        variant: selected.variant,
+        generated_posts: generatedPosts,
+      };
+
+      if (!immediate && scheduledTime) {
+        payload.scheduled_time = scheduledTime;
+      }
+
       const res = await fetch(`${API_BASE}/demo/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          variant: selected.variant,
-          generated_posts: generatedPosts,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.detail || "Publish failed");
       }
-      const urn = data?.linkedin?.id ? ` (${data.linkedin.id})` : "";
-      setSteps([
-        { id: 1, label: "trends: completed", status: "completed" },
-        { id: 2, label: "generation: completed", status: "completed" },
-        { id: 3, label: "approval: completed", status: "completed" },
-        { id: 4, label: "publish: completed", status: "completed" },
-      ]);
-      toast.success(`Published to LinkedIn${urn}`);
+
+      if (data.scheduled) {
+        const schedTime = new Date(data.scheduled_time).toLocaleString();
+        toast.success(`Post scheduled for ${schedTime}`);
+        setSteps([
+          { id: 1, label: "trends: completed", status: "completed" },
+          { id: 2, label: "generation: completed", status: "completed" },
+          { id: 3, label: "approval: completed", status: "completed" },
+          { id: 4, label: `publish: scheduled for ${schedTime}`, status: "completed" },
+        ]);
+      } else {
+        const urn = data?.linkedin?.id ? ` (${data.linkedin.id})` : "";
+        setSteps([
+          { id: 1, label: "trends: completed", status: "completed" },
+          { id: 2, label: "generation: completed", status: "completed" },
+          { id: 3, label: "approval: completed", status: "completed" },
+          { id: 4, label: "publish: completed", status: "completed" },
+        ]);
+        toast.success(`Published to LinkedIn${urn}`);
+      }
+      
+      setShowScheduler(false);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Publish failed";
       toast.error(msg);
-      setResults((prev) => prev.map((r, i) => (i === index ? { ...r, status: null } : r)));
+      setResults((prev) => prev.map((r, i) => (i === publishingIndex ? { ...r, status: null } : r)));
     } finally {
       setPublishingIndex(null);
     }
@@ -156,6 +189,8 @@ const Index = () => {
     setResults([]);
     setGeneratedPosts(null);
     setPublishingIndex(null);
+    setShowScheduler(false);
+    setScheduledTime("");
   };
 
   return (
@@ -240,10 +275,49 @@ const Index = () => {
                   />
                 ))}
               </div>
-              {publishingIndex !== null && (
-                <p className="text-center text-sm text-muted-foreground mb-6">
-                  Publishing selected variant...
-                </p>
+              {publishingIndex !== null && showScheduler && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-6 p-5 rounded-2xl bg-accent/50 border border-border"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <h3 className="text-sm font-semibold text-foreground">Schedule Post</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Choose when to publish (defaults to next weekday 9am)
+                  </p>
+                  <DateTimePicker
+                    value={scheduledTime}
+                    onChange={setScheduledTime}
+                    minDate={new Date()}
+                  />
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      onClick={() => handlePublish(false)}
+                      className="flex-1 rounded-xl gradient-pink py-2 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90"
+                    >
+                      Schedule Post
+                    </button>
+                    <button
+                      onClick={() => handlePublish(true)}
+                      className="flex-1 rounded-xl border border-border py-2 text-sm font-medium text-foreground transition-all hover:bg-muted"
+                    >
+                      Publish Now
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowScheduler(false);
+                        setPublishingIndex(null);
+                        setResults((prev) => prev.map((r) => ({ ...r, status: null })));
+                      }}
+                      className="px-4 rounded-xl border border-border py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-muted"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </motion.div>
               )}
 
               {/* New prompt button */}

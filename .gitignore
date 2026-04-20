@@ -47,3 +47,10 @@ CREATE_PR_INSTRUCTIONS.md
 # LinkedIn local state (never commit)
 data/linkedin_tokens.json
 data/linkedin_rate_limit_state.json
+
+# Database files
+data/
+
+# Documentation (keep in repo but exclude from commits if needed)
+# IMPLEMENTATION_SUMMARY.md
+# SCHEDULING_FEATURE.md
